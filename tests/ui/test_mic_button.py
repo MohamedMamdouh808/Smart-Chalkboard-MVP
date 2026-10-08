@@ -6,8 +6,8 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui import theme  # noqa: E402
-from smartboard.ui.mic_button import MicButton, VOICE_STATES  # noqa: E402
+from smartboard.ui import theme
+from smartboard.ui.mic_button import VOICE_STATES, MicButton
 
 
 def test_voice_states_complete() -> None:
@@ -50,6 +50,10 @@ def test_bad_state_rejected(qapp: object) -> None:
 
 def test_qss_state_blocks_present() -> None:
     qss = theme.build_stylesheet()
-    for selector in ("QPushButton:hover", "QPushButton:pressed",
-                     "QPushButton:disabled", "QPushButton:focus"):
+    for selector in (
+        "QPushButton:hover",
+        "QPushButton:pressed",
+        "QPushButton:disabled",
+        "QPushButton:focus",
+    ):
         assert selector in qss

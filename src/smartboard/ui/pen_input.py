@@ -10,14 +10,15 @@ GROUP_WINDOW_S = 1.5
 
 
 def map_stroke_to_canvas(
-    screen_points: list[dict[str, Any]], viewport: Any,
+    screen_points: list[dict[str, Any]],
+    viewport: Any,
 ) -> list[dict[str, Any]]:
-    """Map sampled screen points (``sx``/``sy``) to canvas coordinates through
-    the viewport current at sample time. Committed strokes store canvas
-    coordinates, so a mid-stroke resize cannot skew the element."""
+    """Map sampled screen points (``sx``/``sy``) to world coordinates through
+    the viewport current at sample time. Committed strokes store world
+    coordinates, so a mid-stroke camera move cannot skew the element."""
     mapped = []
     for p in screen_points:
-        cx, cy = viewport.to_canvas(float(p.get("sx", 0)), float(p.get("sy", 0)))
+        cx, cy = viewport.to_world(float(p.get("sx", 0)), float(p.get("sy", 0)))
         point: dict[str, Any] = {"x": cx, "y": cy}
         if "pressure" in p:
             point["pressure"] = p["pressure"]
@@ -38,13 +39,18 @@ class StrokeGrouper:
         """Call on selection/command between strokes to break grouping."""
         self._interrupted = True
 
-    def pen_up(self, stroke: list[dict[str, Any]], now: float | None = None) -> list[list[dict[str, Any]]] | None:
+    def pen_up(
+        self, stroke: list[dict[str, Any]], now: float | None = None
+    ) -> list[list[dict[str, Any]]] | None:
         """Feed one finished stroke. Returns a committed group when the group closes."""
         now = time.monotonic() if now is None else now
-        if self._interrupted or (self._last_up is not None and now - self._last_up > GROUP_WINDOW_S):
-            if self._current:
-                self.groups.append(self._current)
-                self._current = []
+        if (
+            self._interrupted
+            or (self._last_up is not None and now - self._last_up > GROUP_WINDOW_S)
+            and self._current
+        ):
+            self.groups.append(self._current)
+            self._current = []
         self._interrupted = False
         self._current.append(stroke)
         self._last_up = now

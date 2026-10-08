@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 AI_DOWN_MESSAGE = "Unable to understand the command. Please try again."
 
@@ -30,21 +31,21 @@ def interpret_with_fallback(
     log: list[dict[str, str]] = []
     try:
         raw = primary()
-    except Exception:
+    except Exception:  # noqa: BLE001 - provider faults degrade to manual mode
         log.append({"provider": "gemini", "error_type": "call_failed"})
         raw = None
     if raw is not None and not check(raw):
         log.append({"provider": "gemini", "error_type": "malformed_json"})
         try:
             raw = primary()  # exactly one regeneration, same provider
-        except Exception:
+        except Exception:  # noqa: BLE001 - provider faults degrade to manual mode
             log.append({"provider": "gemini", "error_type": "call_failed"})
             raw = None
     if raw is not None and check(raw):
         return raw, "gemini", log
     try:
         raw = fallback()
-    except Exception:
+    except Exception:  # noqa: BLE001 - provider faults degrade to manual mode
         log.append({"provider": "groq", "error_type": "call_failed"})
         return None, AI_DOWN_MESSAGE, log
     if not check(raw):

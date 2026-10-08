@@ -27,7 +27,31 @@ def _changed_files() -> list[str] | None:
     return [line for line in out.stdout.splitlines() if line.strip()]
 
 
+def _branch_has_snapshot() -> bool:
+    """True when the guard’s base branch has a unique snapshot to compare."""
+    if shutil.which("git") is None:
+        return False
+    try:
+        base = subprocess.run(
+            ["git", "rev-parse", BASE_REF],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        return False
+    return base.stdout.strip() != head.stdout.strip()
+
+
 def test_core_and_persistence_untouched() -> None:
+    if not _branch_has_snapshot():
+        pytest.skip("guard base has no unique branch snapshot; cannot verify untouched core")
     changed = _changed_files()
     if changed is None:
         pytest.skip("git base ref unavailable; cannot verify untouched core")

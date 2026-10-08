@@ -35,7 +35,7 @@ except ImportError:  # pragma: no cover - headless CI
     _QT = False
 
 
-class ResultChip(QWidget if _QT else object):  # type: ignore[valid-type,misc]
+class ResultChip(QWidget if _QT else object):  # type: ignore[misc]
     """Top-bar right chip rendering the outcome triple."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -50,11 +50,13 @@ class ResultChip(QWidget if _QT else object):  # type: ignore[valid-type,misc]
         self._icon = QLabel()
         self._label = QLabel("—")
         self._label.setStyleSheet(
-            f"font-size: {theme.FONT_STATUS}px; color: {theme.TEXT}; background: transparent;")
+            f"font-size: {theme.FONT_STATUS}px; color: {theme.TEXT}; background: transparent;"
+        )
         layout.addWidget(self._icon)
         layout.addWidget(self._label)
         self.setStyleSheet(
-            "ResultChip { background-color: %s; border-radius: 16px; }" % theme.BUTTON_BG_ALT)
+            f"ResultChip {{ background-color: {theme.BUTTON_BG_ALT}; border-radius: 16px; }}"
+        )
         self._outcome = "done"
         self.set_outcome("done")
 

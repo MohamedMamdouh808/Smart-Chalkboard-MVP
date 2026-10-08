@@ -22,8 +22,8 @@
 
 **Purpose**: Confirm the active feature workspace and pre-change test baseline
 
-- [ ] T001 [P] Verify that the active branch is `009-direct-manipulation` and that `.specify/feature.json` points to `specs/009-direct-manipulation`
-- [ ] T002 [P] Record the pre-change baseline by running the full suite in `tests/` and the core coverage gate for `src/smartboard/core/`, without changing source or tests
+- [X] T001 [P] Verify that the active branch is `009-direct-manipulation` and that `.specify/feature.json` points to `specs/009-direct-manipulation`
+- [X] T002 [P] Record the pre-change baseline by running the full suite in `tests/` and the core coverage gate for `src/smartboard/core/`, without changing source or tests
 
 **Checkpoint**: Workspace and baseline are known before any 009 edits.
 
@@ -35,8 +35,8 @@
 
 **⚠️ CRITICAL**: No user-story work can begin until this phase is complete
 
-- [ ] T003 [P] Verify existing queue, engine-lock, manual-operation, history, and selection seams in `src/smartboard/app/command_queue.py`, `src/smartboard/app/orchestrator.py`, and `src/smartboard/core/engine.py` without changing behavior
-- [ ] T004 [P] Verify existing viewport mapping, pointer handling, selection painting, handle tokens, and mode behavior in `src/smartboard/ui/viewport.py`, `src/smartboard/ui/board_view.py`, `src/smartboard/ui/theme.py`, and `src/smartboard/ui/main_window.py` without changing behavior
+- [X] T003 [P] Verify existing queue, engine-lock, manual-operation, history, and selection seams in `src/smartboard/app/command_queue.py`, `src/smartboard/app/orchestrator.py`, and `src/smartboard/core/engine.py` without changing behavior
+- [X] T004 [P] Verify existing viewport mapping, pointer handling, selection painting, handle tokens, and mode behavior in `src/smartboard/ui/viewport.py`, `src/smartboard/ui/board_view.py`, `src/smartboard/ui/theme.py`, and `src/smartboard/ui/main_window.py` without changing behavior
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
 
@@ -52,15 +52,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T005 [P] [US1] Add failing canonical bounding-box tests to `tests/unit/test_direct_manipulation_geometry.py`, including the width-8 scribble-plus-line expectation `(96, 106, 728, 118)` and recalculation after creation, move, resize, undo, redo, and persistence restoration
-- [ ] T006 [P] [US1] Add failing per-type hit tests to `tests/unit/test_direct_manipulation_hit_testing.py` for headings, text, equations, rectangles, circles, lines, arrows, triangles, drawings, topmost overlap, malformed elements, empty space, and viewport-scale-aware handle detection
-- [ ] T007 [P] [US1] Add failing selection-presentation tests to `tests/ui/test_direct_manipulation_selection.py` for tight outlines around every element type, four corner handles on the selected element only, and immediate empty-space deselection
+- [X] T005 [P] [US1] Add failing canonical bounding-box tests to `tests/unit/test_direct_manipulation_geometry.py`, including the width-8 scribble-plus-line expectation `(96, 106, 728, 118)` and recalculation after creation, move, resize, undo, redo, and persistence restoration
+- [X] T006 [P] [US1] Add failing per-type hit tests to `tests/unit/test_direct_manipulation_hit_testing.py` for headings, text, equations, rectangles, circles, lines, arrows, triangles, drawings, topmost overlap, malformed elements, empty space, and viewport-scale-aware handle detection
+- [X] T007 [P] [US1] Add failing selection-presentation tests to `tests/ui/test_direct_manipulation_selection.py` for tight outlines around every element type, four corner handles on the selected element only, and immediate empty-space deselection
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Revise canonical drawing bounds and refresh behavior in `src/smartboard/core/board.py` and `src/smartboard/core/engine.py`, expanding point extrema by half the nominal stroke width and recalculating after creation, move, resize, undo, redo, and persistence restoration
-- [ ] T009 [US1] Implement per-type hit routines, shape-primitive handling, drawing proximity/box selection, expanded handle detection, and topmost dispatch in `src/smartboard/core/hit_test.py`
-- [ ] T010 [US1] Run the new US1 tests plus affected existing drawing, hit-test, and selection tests in `tests/unit/test_direct_manipulation_geometry.py`, `tests/unit/test_direct_manipulation_hit_testing.py`, `tests/ui/test_direct_manipulation_selection.py`, `tests/unit/test_drawing_model.py`, and `tests/ui/test_board_surface.py`, then fix only 009 regressions
+- [X] T008 [US1] Revise canonical drawing bounds and refresh behavior in `src/smartboard/core/board.py` and `src/smartboard/core/engine.py`, expanding point extrema by half the nominal stroke width and recalculating after creation, move, resize, undo, redo, and persistence restoration
+- [X] T009 [US1] Implement per-type hit routines, shape-primitive handling, drawing proximity/box selection, expanded handle detection, and topmost dispatch in `src/smartboard/core/hit_test.py`, and use the canonical drawing bounds for selected-drawing outlines in `src/smartboard/ui/board_view.py`
+- [X] T010 [US1] Run the new US1 tests plus affected existing drawing, hit-test, and selection tests in `tests/unit/test_direct_manipulation_geometry.py`, `tests/unit/test_direct_manipulation_hit_testing.py`, `tests/ui/test_direct_manipulation_selection.py`, `tests/unit/test_drawing_model.py`, `tests/integration/test_drawing_engine.py`, and `tests/ui/test_board_surface.py`, then fix only 009 regressions
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently.
 
@@ -76,15 +76,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T011 [P] [US2] Add failing Qt-independent drag-geometry tests to `tests/unit/test_direct_manipulation_gesture_geometry.py` for grab offsets, translation, canvas clamping, integer commit quantization, and preview/state separation
-- [ ] T012 [P] [US2] Add failing synthetic drag tests to `tests/ui/test_direct_manipulation_drag.py` for mouse, tablet, and touch dragging of every element type, edge clamping, empty-space behavior, preview-only pointer motion, and one queued `move_item` commit
+- [X] T011 [P] [US2] Add failing Qt-independent drag-geometry tests to `tests/unit/test_direct_manipulation_gesture_geometry.py` for grab offsets, translation, canvas clamping, integer commit quantization, and preview/state separation
+- [X] T012 [P] [US2] Add failing synthetic drag tests to `tests/ui/test_direct_manipulation_drag.py` for mouse, tablet, and touch dragging of every element type, edge clamping, empty-space behavior, preview-only pointer motion, and one queued `move_item` commit
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Implement Qt-independent drag candidates, clamped translation, commit quantization, and preview geometry in `src/smartboard/core/gesture.py`
-- [ ] T014 [US2] Implement Select-mode press selection, idle/dragging transitions, movement threshold, snapshot previews, suppressed underlying rendering, and gesture signals in `src/smartboard/ui/board_view.py`
-- [ ] T015 [US2] Route valid drag releases through one FIFO-queued standard `move_item` operation with source `"ui"` in `src/smartboard/app/orchestrator.py` and `src/smartboard/app/main.py`
-- [ ] T016 [US2] Run the new US2 tests plus affected queue, selection, and viewport tests in `tests/unit/test_direct_manipulation_gesture_geometry.py`, `tests/ui/test_direct_manipulation_drag.py`, `tests/integration/test_command_queue.py`, and `tests/ui/test_coordinate_mapping.py`, then fix only 009 regressions
+- [X] T013 [US2] Implement Qt-independent drag candidates, clamped translation, commit quantization, and preview geometry in `src/smartboard/core/gesture.py`
+- [X] T014 [US2] Implement Select-mode press selection, idle/dragging transitions, movement threshold, snapshot previews, suppressed underlying rendering, and gesture signals in `src/smartboard/ui/board_view.py`
+- [X] T015 [US2] Route valid drag releases through one FIFO-queued standard `move_item` operation with source `"ui"` in `src/smartboard/app/orchestrator.py` and `src/smartboard/app/main.py`
+- [X] T016 [US2] Run the new US2 tests plus affected queue, selection, and viewport tests in `tests/unit/test_direct_manipulation_gesture_geometry.py`, `tests/ui/test_direct_manipulation_drag.py`, `tests/integration/test_command_queue.py`, and `tests/ui/test_coordinate_mapping.py`, then fix only 009 regressions
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently.
 
@@ -100,15 +100,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T017 [P] [US3] Add failing Qt-independent resize-geometry tests to `tests/unit/test_direct_manipulation_gesture_geometry.py` for all four fixed-corner anchors, proportion preservation for drawings/shapes/equations, independent text/heading boxes, minimum size, canvas clamping, integer quantization, and unchanged drawing stroke widths
-- [ ] T018 [P] [US3] Add failing synthetic resize tests to `tests/ui/test_direct_manipulation_resize.py` for all four corners, visible handles, diagonal hover cursors, live previews, text wrapping, edge/minimum behavior, and one queued `resize_item` commit
+- [X] T017 [P] [US3] Add failing Qt-independent resize-geometry tests to `tests/unit/test_direct_manipulation_gesture_geometry.py` for all four fixed-corner anchors, proportion preservation for drawings/shapes/equations, independent text/heading boxes, minimum size, canvas clamping, integer quantization, and unchanged drawing stroke widths
+- [X] T018 [P] [US3] Add failing synthetic resize tests to `tests/ui/test_direct_manipulation_resize.py` for all four corners, visible handles, diagonal hover cursors, live previews, text wrapping, edge/minimum behavior, and one queued `resize_item` commit
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Implement Qt-independent fixed-corner resize candidates, aspect policy, clamping, quantization, proportional drawing-point transforms, and preview geometry in `src/smartboard/core/gesture.py`
-- [ ] T020 [US3] Implement handle rendering, expanded handle interaction, hover cursors, idle/resizing transitions, snapshot previews, and resize-release signaling in `src/smartboard/ui/board_view.py`
-- [ ] T021 [US3] Implement internal fixed-corner manual resize execution in `src/smartboard/core/engine.py` and route one FIFO-queued existing `resize_item` operation with source `"ui"` through `src/smartboard/app/orchestrator.py` and `src/smartboard/app/main.py`
-- [ ] T022 [US3] Run the new US3 tests plus affected engine, rendering, text, and viewport tests in `tests/unit/test_direct_manipulation_gesture_geometry.py`, `tests/ui/test_direct_manipulation_resize.py`, `tests/integration/test_drawing_engine.py`, and `tests/ui/test_text_fit.py`, then fix only 009 regressions
+- [X] T019 [US3] Implement Qt-independent fixed-corner resize candidates, aspect policy, clamping, quantization, proportional drawing-point transforms, and preview geometry in `src/smartboard/core/gesture.py`
+- [X] T020 [US3] Implement handle rendering, expanded handle interaction, hover cursors, idle/resizing transitions, snapshot previews, and resize-release signaling in `src/smartboard/ui/board_view.py`
+- [X] T021 [US3] Implement internal fixed-corner manual resize execution in `src/smartboard/core/engine.py` and route one FIFO-queued existing `resize_item` operation with source `"ui"` through `src/smartboard/app/orchestrator.py` and `src/smartboard/app/main.py`
+- [X] T022 [US3] Run the new US3 tests plus affected engine, rendering, text, and viewport tests in `tests/unit/test_direct_manipulation_gesture_geometry.py`, `tests/ui/test_direct_manipulation_resize.py`, `tests/integration/test_drawing_engine.py`, and `tests/ui/test_text_fit.py`, then fix only 009 regressions
 
 **Checkpoint**: All user stories should now be independently functional.
 
@@ -118,10 +118,10 @@
 
 **Purpose**: Prove atomic history behavior and non-mutating cancellation across accepted and rejected gestures
 
-- [ ] T023 [P] Add failing history-accounting tests to `tests/integration/test_direct_manipulation_history.py` proving one applied entry per accepted drag/resize, complete Undo/Redo restoration, retained selection, FIFO ordering, and no concurrent engine writes
-- [ ] T024 [P] Add failing cancellation tests to `tests/ui/test_direct_manipulation_gesture_cancel.py` proving Escape, mode change, no-movement release, invalid geometry, rejected validation, blocked queue, and full-queue outcomes leave board state, version, and history unchanged
-- [ ] T025 Finalize successful and unsuccessful gesture completion in `src/smartboard/app/orchestrator.py`, `src/smartboard/app/main.py`, and `src/smartboard/ui/board_view.py`, including preview cleanup, unchanged-board refresh, error reporting, retained selection, and deferred/blocked queue behavior without duplicate commits
-- [ ] T026 Run the history/cancellation tests plus affected queue and engine tests in `tests/integration/test_direct_manipulation_history.py`, `tests/ui/test_direct_manipulation_gesture_cancel.py`, `tests/integration/test_command_queue.py`, and `tests/unit/test_history.py`, then fix only 009 regressions
+- [X] T023 [P] Add failing history-accounting tests to `tests/integration/test_direct_manipulation_history.py` proving one applied entry per accepted drag/resize, complete Undo/Redo restoration, retained selection, FIFO ordering, and no concurrent engine writes
+- [X] T024 [P] Add failing cancellation tests to `tests/ui/test_direct_manipulation_gesture_cancel.py` proving Escape, mode change, no-movement release, invalid geometry, rejected validation, blocked queue, and full-queue outcomes leave board state, version, and history unchanged
+- [X] T025 Finalize successful and unsuccessful gesture completion in `src/smartboard/app/orchestrator.py`, `src/smartboard/app/main.py`, and `src/smartboard/ui/board_view.py`, including preview cleanup, unchanged-board refresh, error reporting, retained selection, and deferred/blocked queue behavior without duplicate commits
+- [X] T026 Run the history/cancellation tests plus affected queue and engine tests in `tests/integration/test_direct_manipulation_history.py`, `tests/ui/test_direct_manipulation_gesture_cancel.py`, `tests/integration/test_command_queue.py`, and `tests/unit/test_history.py`, then fix only 009 regressions
 
 **Checkpoint**: Accepted gestures have exactly one reversible history entry; every cancellation path is side-effect-free.
 
@@ -131,10 +131,10 @@
 
 **Purpose**: Prove manual gestures coexist with voice operations and leave the suite green
 
-- [ ] T027 Add a failing voice-resize-then-manual-drag scenario to `tests/e2e/test_voice_manual_direct_manipulation.py` covering shared operations, transformed drawing points, recalculated bounds, selection retention, history order, Pen-mode isolation, and representative window sizes
-- [ ] T028 Resolve failures exposed by the mixed scenario in the applicable files among `src/smartboard/core/board.py`, `src/smartboard/core/hit_test.py`, `src/smartboard/core/gesture.py`, `src/smartboard/core/engine.py`, `src/smartboard/ui/board_view.py`, `src/smartboard/app/orchestrator.py`, and `src/smartboard/app/main.py`, without changing the public voice-command schema or adding an AI command
-- [ ] T029 Run the complete regression suite in `tests/` and the core coverage gate for `src/smartboard/core/`, requiring all tests to pass and coverage to remain at or above 95%
-- [ ] T030 Execute the manual and automated verification steps in `specs/009-direct-manipulation/quickstart.md` and record the headed-check outcomes there
+- [X] T027 Add a failing voice-resize-then-manual-drag scenario to `tests/e2e/test_voice_manual_direct_manipulation.py` covering shared operations, transformed drawing points, recalculated bounds, selection retention, history order, Pen-mode isolation, and representative window sizes
+- [X] T028 Resolve failures exposed by the mixed scenario in the applicable files among `src/smartboard/core/board.py`, `src/smartboard/core/hit_test.py`, `src/smartboard/core/gesture.py`, `src/smartboard/core/engine.py`, `src/smartboard/ui/board_view.py`, `src/smartboard/app/orchestrator.py`, and `src/smartboard/app/main.py`, without changing the public voice-command schema or adding an AI command
+- [X] T029 Run the complete regression suite in `tests/` and the core coverage gate for `src/smartboard/core/`, requiring all tests to pass and coverage to remain at or above 95%
+- [X] T030 Execute the manual and automated verification steps in `specs/009-direct-manipulation/quickstart.md` and record the headed-check outcomes there
 
 **Checkpoint**: The feature is complete, tested, documented, and regression-free.
 
@@ -182,9 +182,9 @@
 
 ```text
 # Launch all tests for User Story 1 together:
-- [ ] T005 [P] [US1] Add failing canonical bounding-box tests to `tests/unit/test_direct_manipulation_geometry.py`
-- [ ] T006 [P] [US1] Add failing per-type hit tests to `tests/unit/test_direct_manipulation_hit_testing.py`
-- [ ] T007 [P] [US1] Add failing selection-presentation tests to `tests/ui/test_direct_manipulation_selection.py`
+Task: "Add failing canonical bounding-box tests in `tests/unit/test_direct_manipulation_geometry.py`"
+Task: "Add failing per-type hit tests in `tests/unit/test_direct_manipulation_hit_testing.py`"
+Task: "Add failing selection-presentation tests in `tests/ui/test_direct_manipulation_selection.py`"
 ```
 
 ---
@@ -193,8 +193,8 @@
 
 ```text
 # Launch all tests for User Story 2 together:
-- [ ] T011 [P] [US2] Add failing Qt-independent drag-geometry tests to `tests/unit/test_direct_manipulation_gesture_geometry.py`
-- [ ] T012 [P] [US2] Add failing synthetic drag tests to `tests/ui/test_direct_manipulation_drag.py`
+Task: "Add failing Qt-independent drag-geometry tests in `tests/unit/test_direct_manipulation_gesture_geometry.py`"
+Task: "Add failing synthetic drag tests in `tests/ui/test_direct_manipulation_drag.py`"
 ```
 
 ---

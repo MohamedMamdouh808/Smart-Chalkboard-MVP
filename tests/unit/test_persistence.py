@@ -70,10 +70,9 @@ def test_history_append_load_and_undo_status(conn: sqlite3.Connection) -> None:
 def test_transactional_rollback_on_db_failure(conn: sqlite3.Connection) -> None:
     repo = LessonRepo(conn)
     repo.create("lesson_001", "Physics")
-    with pytest.raises(sqlite3.IntegrityError):
-        with conn:
-            conn.execute("INSERT INTO lessons (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                         ("lesson_001", "dup", "t", "t"))
+    with pytest.raises(sqlite3.IntegrityError), conn:
+        conn.execute("INSERT INTO lessons (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                     ("lesson_001", "dup", "t", "t"))
     assert repo.get("lesson_001")["title"] == "Physics"
 
 

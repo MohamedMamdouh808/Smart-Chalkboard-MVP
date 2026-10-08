@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
 from . import errors
-from .board import CANVAS_HEIGHT, CANVAS_WIDTH, MIN_SIZE
+from .board import MAX_WORLD_COORD, MAX_WORLD_SIZE, MIN_SIZE
 
 SHAPE_TYPES: tuple[str, ...] = ("rectangle", "circle", "line", "arrow", "triangle")
 
@@ -62,7 +63,11 @@ def validate_params(command: str, params: dict[str, Any]) -> tuple[bool, str, st
         "new_lesson": {"title"},
     }
     if set(params.keys()) - allowed.get(command, set()):
-        return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "unknown key")
+        return (
+            False,
+            errors.E_PARAM_INVALID,
+            errors.message_for(errors.E_PARAM_INVALID, "unknown key"),
+        )
 
     if command == "create_heading":
         if "text" not in params or not _text_ok(params["text"], 200):
@@ -71,61 +76,120 @@ def validate_params(command: str, params: dict[str, Any]) -> tuple[bool, str, st
         if "text" not in params or not _text_ok(params["text"], 2000):
             return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "text")
         if "equation_style" in params and not isinstance(params["equation_style"], bool):
-            return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "equation_style")
+            return (
+                False,
+                errors.E_PARAM_INVALID,
+                errors.message_for(errors.E_PARAM_INVALID, "equation_style"),
+            )
     elif command == "create_shape":
         if params.get("shape_type") not in SHAPE_TYPES:
             detail = "shape (supported: rectangle, circle, line, arrow, triangle)"
             return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, detail)
         if "color" in params and not validate_color(params["color"]):
-            return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "color")
+            return (
+                False,
+                errors.E_PARAM_INVALID,
+                errors.message_for(errors.E_PARAM_INVALID, "color"),
+            )
     elif command == "change_color":
         if "color" not in params or not validate_color(params["color"]):
-            return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "color")
+            return (
+                False,
+                errors.E_PARAM_INVALID,
+                errors.message_for(errors.E_PARAM_INVALID, "color"),
+            )
     elif command == "move_item":
         if "position" in params and "relative" in params:
             return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "move")
         if "position" in params:
             pos = params["position"]
             if not isinstance(pos, dict) or not isinstance(pos.get("x"), (int, float)):
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "position")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "position"),
+                )
             if not isinstance(pos.get("y"), (int, float)):
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "position")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "position"),
+                )
         elif "relative" in params:
             rel = params["relative"]
             if not isinstance(rel, dict) or rel.get("direction") not in DIRECTIONS:
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "direction")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "direction"),
+                )
             dist = rel.get("distance")
             if isinstance(dist, str) and dist not in DISTANCE_STEPS:
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "distance")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "distance"),
+                )
             if not isinstance(dist, (int, float, str)):
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "distance")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "distance"),
+                )
         else:
             return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "move")
     elif command == "resize_item":
         if "scale_factor" in params and "size" in params:
-            return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "resize")
+            return (
+                False,
+                errors.E_PARAM_INVALID,
+                errors.message_for(errors.E_PARAM_INVALID, "resize"),
+            )
         if "scale_factor" in params:
             try:
                 scale = float(params["scale_factor"])
             except (TypeError, ValueError):
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "scale")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "scale"),
+                )
             if not 0.25 <= scale <= 4.0:
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "scale")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "scale"),
+                )
         elif "size" in params:
             size = params["size"]
             if not isinstance(size, dict):
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "size")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "size"),
+                )
             try:
                 w, h = float(size["w"]), float(size["h"])
             except (KeyError, TypeError, ValueError):
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "size")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "size"),
+                )
             if w < MIN_SIZE or h < MIN_SIZE:
-                return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "size")
+                return (
+                    False,
+                    errors.E_PARAM_INVALID,
+                    errors.message_for(errors.E_PARAM_INVALID, "size"),
+                )
         else:
-            return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "resize")
-    elif command == "new_lesson":
-        if "title" in params and not _text_ok(params["title"], 200):
-            return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "title")
+            return (
+                False,
+                errors.E_PARAM_INVALID,
+                errors.message_for(errors.E_PARAM_INVALID, "resize"),
+            )
+    elif command == "new_lesson" and "title" in params and not _text_ok(params["title"], 200):
+        return False, errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "title")
     return _NO_TARGET
 
 
@@ -145,7 +209,16 @@ def resolve_move(params: dict[str, Any], cur_x: int, cur_y: int) -> tuple[int, i
     return cur_x + steps, cur_y
 
 
-def fits_canvas(x: int, y: int, w: int, h: int) -> bool:
+def within_world_limits(x: Any, y: Any, w: Any, h: Any) -> bool:
+    """Finite numeric sanity guard for unbounded world geometry (no page edge)."""
+    try:
+        fx, fy, fw, fh = float(x), float(y), float(w), float(h)
+    except (TypeError, ValueError):
+        return False
     return (
-        x >= 0 and y >= 0 and w >= MIN_SIZE and h >= MIN_SIZE and x + w <= CANVAS_WIDTH and y + h <= CANVAS_HEIGHT
+        all(map(math.isfinite, (fx, fy, fw, fh)))
+        and abs(fx) <= MAX_WORLD_COORD
+        and abs(fy) <= MAX_WORLD_COORD
+        and MIN_SIZE <= fw <= MAX_WORLD_SIZE
+        and MIN_SIZE <= fh <= MAX_WORLD_SIZE
     )

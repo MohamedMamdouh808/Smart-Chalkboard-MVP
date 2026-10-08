@@ -1,0 +1,6 @@
+PyQt6
+faster-whisper
+sounddevice
+numpy
+groq
+python-dotenv

@@ -39,6 +39,7 @@ if _QT:
         def __init__(self, prompt: str, parent: Any = None) -> None:
             super().__init__(parent)
             from PyQt6.QtCore import Qt as _Qt
+
             from .theme import DIALOG_BUTTON_H, FONT_STATUS, TEXT, dialog_stylesheet
 
             self.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -49,7 +50,8 @@ if _QT:
             message = QLabel(prompt)
             message.setStyleSheet(
                 f"font-size: {FONT_STATUS}px; padding: 24px; color: {TEXT};"
-                " background: transparent;")
+                " background: transparent;"
+            )
             layout.addWidget(message)
             row = QHBoxLayout()
             cancel = QPushButton("Cancel")

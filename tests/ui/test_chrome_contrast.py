@@ -6,12 +6,12 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui.main_window import MIN_TARGET_PX, MainWindow  # noqa: E402
+from smartboard.ui.main_window import MIN_TARGET_PX, MainWindow
 
 
 def _luminance(hex_color: str) -> float:
     hex_color = hex_color.lstrip("#")
-    rgb = [int(hex_color[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    rgb = [int(hex_color[i : i + 2], 16) / 255 for i in (0, 2, 4)]
 
     def channel(c: float) -> float:
         return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4

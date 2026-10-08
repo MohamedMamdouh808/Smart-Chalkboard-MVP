@@ -6,8 +6,8 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui.main_window import MainWindow  # noqa: E402
-from smartboard.ui.window_state import (  # noqa: E402
+from smartboard.ui.main_window import MainWindow
+from smartboard.ui.window_state import (
     DEFAULT_PEN_WIDTH_NAME,
     PEN_WIDTHS,
     load_mode,

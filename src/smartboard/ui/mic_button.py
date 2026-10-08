@@ -10,7 +10,12 @@ from .icons import load_icon
 VOICE_STATES: tuple[str, ...] = ("idle", "listening", "processing", "validating", "executing")
 
 try:
-    from PyQt6.QtCore import QPropertyAnimation, Qt, pyqtProperty
+    from PyQt6.QtCore import (  # type: ignore[attr-defined]
+        QPropertyAnimation,
+        Qt,
+        pyqtProperty,
+        pyqtSignal,
+    )
     from PyQt6.QtGui import QColor, QPainter, QPen
     from PyQt6.QtWidgets import QPushButton
 
@@ -19,8 +24,12 @@ except ImportError:  # pragma: no cover - headless CI
     _QT = False
 
 
-class MicButton(QPushButton if _QT else object):  # type: ignore[valid-type,misc]
+class MicButton(QPushButton if _QT else object):  # type: ignore[misc]
     """112px circular primary control. Appearance follows `voiceState`."""
+
+    if _QT:
+        recordingStarted = pyqtSignal()
+        recordingStopped = pyqtSignal()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if not _QT:  # pragma: no cover
@@ -41,18 +50,18 @@ class MicButton(QPushButton if _QT else object):  # type: ignore[valid-type,misc
     if _QT:
 
         @pyqtProperty(str)
-        def voiceState(self) -> str:  # noqa: N802 (Qt naming)
+        def voiceState(self) -> str:
             return self._voice_state
 
-        @voiceState.setter
-        def voiceState(self, value: str) -> None:  # noqa: N802
+        @voiceState.setter  # type: ignore[no-redef]
+        def voiceState(self, value: str) -> None:
             self.set_voice_state(value)
 
         @pyqtProperty(float)
         def pulse(self) -> float:
             return self._pulse
 
-        @pulse.setter
+        @pulse.setter  # type: ignore[no-redef]
         def pulse(self, value: float) -> None:
             self._pulse = float(value)
             self.update()
@@ -69,10 +78,24 @@ class MicButton(QPushButton if _QT else object):  # type: ignore[valid-type,misc
             self._pulse = 0.0
         self.update()
 
+    def set_loading(self, loading: bool) -> None:
+        """Show model readiness without changing the voice-state ring."""
+        self.setText("Loading voice model..." if loading else "")
+        self.setEnabled(not loading)
+        self.update()
+
+    def mousePressEvent(self, event: Any) -> None:
+        self.recordingStarted.emit()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: Any) -> None:
+        self.recordingStopped.emit()
+        super().mouseReleaseEvent(event)
+
     def ring_color(self) -> str:
         return theme.STATE_COLORS[self._voice_state]
 
-    def paintEvent(self, event: Any) -> None:  # noqa: N802 (Qt naming)
+    def paintEvent(self, event: Any) -> None:
         painter = QPainter(self)
         side = min(self.width(), self.height())
         radius = side / 2 - 6
@@ -91,6 +114,9 @@ class MicButton(QPushButton if _QT else object):  # type: ignore[valid-type,misc
         icon_side = int(side * 0.44)
         self._icon.paint(
             painter,
-            int(center[0] - icon_side / 2), int(center[1] - icon_side / 2),
-            icon_side, icon_side)
+            int(center[0] - icon_side / 2),
+            int(center[1] - icon_side / 2),
+            icon_side,
+            icon_side,
+        )
         painter.end()

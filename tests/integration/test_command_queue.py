@@ -16,7 +16,12 @@ def make() -> tuple[CommandEngine, CommandQueue]:
 
 
 def payload(text: str) -> dict:
-    return {"command": "create_text", "target_id": None, "parameters": {"text": text}, "timestamp": TS}
+    return {
+        "command": "create_text",
+        "target_id": None,
+        "parameters": {"text": text},
+        "timestamp": TS,
+    }
 
 
 def test_fifo_order_and_one_at_a_time() -> None:
@@ -70,7 +75,7 @@ def test_cancel_leaves_no_trace_and_unblocks() -> None:
 
 
 def test_failed_command_does_not_clear_queue() -> None:
-    eng, queue = make()
+    _, queue = make()
     queue.submit({"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS})
     queue.submit(payload("after-failure"))
     first = queue.pump()

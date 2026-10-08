@@ -6,10 +6,10 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui import theme  # noqa: E402
-from smartboard.ui.clarify_dialog import ClarifyDialog  # noqa: E402
-from smartboard.ui.confirm_dialog import ConfirmDialog  # noqa: E402
-from smartboard.ui.main_window import MainWindow  # noqa: E402
+from smartboard.ui import theme
+from smartboard.ui.clarify_dialog import ClarifyDialog
+from smartboard.ui.confirm_dialog import ConfirmDialog
+from smartboard.ui.main_window import MainWindow
 
 
 def _buttons(dialog) -> list:

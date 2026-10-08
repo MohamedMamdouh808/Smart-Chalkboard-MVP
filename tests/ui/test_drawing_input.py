@@ -6,8 +6,7 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui.board_view import BoardView  # noqa: E402
-from smartboard.ui.viewport import Viewport  # noqa: E402
+from smartboard.ui.board_view import BoardView
 
 
 class FakePoint:
@@ -45,23 +44,19 @@ def _view(qapp: object, view_w: int = 960, view_h: int = 540) -> BoardView:
     return view
 
 
-def _screen(view: BoardView, cx: float, cy: float) -> tuple[int, int]:
-    vp = Viewport.from_sizes(view.width(), view.height())
-    sx, sy = vp.to_screen(cx, cy)
-    origin = view.mapTo(view, view.rect().topLeft())
-    return int(origin.x() + sx), int(origin.y() + sy)
+def _screen(view: BoardView, wx: float, wy: float) -> tuple[int, int]:
+    sx, sy = view.transform().to_screen(wx, wy)
+    return int(sx), int(sy)
 
 
 def test_synthetic_mouse_draw_emits_canvas_points(qapp: object) -> None:
     from PyQt6.QtCore import QPoint, Qt
     from PyQt6.QtTest import QTest
 
-    from smartboard.ui.viewport import Viewport
-
     view = _view(qapp)
     received: list = []
     view.StrokeFinished.connect(received.append)
-    vp = Viewport.from_sizes(view.width(), view.height())
+    vp = view.transform()
     targets = [(200.0, 200.0), (300.0, 250.0), (400.0, 300.0)]
     pts = [QPoint(int(vp.to_screen(cx, cy)[0]), int(vp.to_screen(cx, cy)[1])) for cx, cy in targets]
     QTest.mousePress(view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pts[0])
@@ -104,7 +99,7 @@ def test_synthetic_tablet_keeps_pressure(qapp: object) -> None:
 
 @pytest.mark.parametrize(("view_w", "view_h"), [(960, 540), (1366, 768), (1920, 1080)])
 def test_same_gesture_identical_canvas_points(qapp: object, view_w: int, view_h: int) -> None:
-    view = _view(qapp, view_w, view_h)
+    view = _view(qapp)
     received: list = []
     view.StrokeFinished.connect(received.append)
     targets = [(100.0, 100.0), (500.0, 500.0), (900.0, 300.0)]
@@ -113,17 +108,18 @@ def test_same_gesture_identical_canvas_points(qapp: object, view_w: int, view_h:
         view._sample(("mouse",), *_screen(view, *target), None)
     view._release(("mouse",), *_screen(view, *targets[-1]))
     for got, (cx, cy) in zip(received[0], targets):
-        # Integer screen pixels quantize: allow < 2 canvas units.
+        # Integer screen pixels quantize: allow < 2 world units.
         assert abs(got["x"] - cx) < 2.0 and abs(got["y"] - cy) < 2.0
     view.close()
 
 
-def test_press_outside_canvas_ignored(qapp: object) -> None:
+def test_press_anywhere_accepted_on_infinite_board(qapp: object) -> None:
     view = _view(qapp)
     received: list = []
     view.StrokeFinished.connect(received.append)
-    assert view._press(("mouse",), -50.0, -50.0, None) is False
-    assert received == []
+    assert view._press(("mouse",), -50.0, -50.0, None) is True
+    view._release(("mouse",), -50.0, -50.0)
+    assert len(received) == 1
     view.close()
 
 
@@ -161,14 +157,30 @@ def test_select_mode_click_selects_drawing(qapp: object) -> None:
 
     view = _view(qapp)
     view.set_mode("select")
-    view.render_state({
-        "canvas": {"width": 1920, "height": 1080},
-        "elements": [{"id": "drawing_001", "type": "drawing", "x": 0, "y": 0,
-                      "width": 400, "height": 300, "color": "#FFFFFF", "z": 1,
-                      "strokes": [{"points": [{"x": 100, "y": 100}, {"x": 300, "y": 200}],
-                                    "width": 4, "color": "#FFFFFF"}]}],
-        "selected_element_id": None,
-    })
+    view.render_state(
+        {
+            "elements": [
+                {
+                    "id": "drawing_001",
+                    "type": "drawing",
+                    "x": 0,
+                    "y": 0,
+                    "width": 400,
+                    "height": 300,
+                    "color": "#FFFFFF",
+                    "z": 1,
+                    "strokes": [
+                        {
+                            "points": [{"x": 100, "y": 100}, {"x": 300, "y": 200}],
+                            "width": 4,
+                            "color": "#FFFFFF",
+                        }
+                    ],
+                }
+            ],
+            "selected_element_id": None,
+        }
+    )
     picked: list = []
     view.SelectionChanged.connect(picked.append)
     sx, sy = _screen(view, 200, 150)  # near the stroke
@@ -182,17 +194,33 @@ def test_select_mode_click_selects_drawing(qapp: object) -> None:
 def test_select_mode_click_empty_clears(qapp: object) -> None:
     view = _view(qapp)
     view.set_mode("select")
-    view.render_state({
-        "canvas": {"width": 1920, "height": 1080},
-        "elements": [{"id": "drawing_001", "type": "drawing", "x": 0, "y": 0,
-                      "width": 400, "height": 300, "color": "#FFFFFF", "z": 1,
-                      "strokes": [{"points": [{"x": 100, "y": 100}, {"x": 300, "y": 200}],
-                                    "width": 4, "color": "#FFFFFF"}]}],
-        "selected_element_id": "drawing_001",
-    })
+    view.render_state(
+        {
+            "elements": [
+                {
+                    "id": "drawing_001",
+                    "type": "drawing",
+                    "x": 0,
+                    "y": 0,
+                    "width": 400,
+                    "height": 300,
+                    "color": "#FFFFFF",
+                    "z": 1,
+                    "strokes": [
+                        {
+                            "points": [{"x": 100, "y": 100}, {"x": 300, "y": 200}],
+                            "width": 4,
+                            "color": "#FFFFFF",
+                        }
+                    ],
+                }
+            ],
+            "selected_element_id": "drawing_001",
+        }
+    )
     picked: list = []
     view.SelectionChanged.connect(picked.append)
-    sx, sy = _screen(view, 1500, 900)  # empty canvas
+    sx, sy = _screen(view, 1500, 900)  # empty world area
     view._press(("mouse",), float(sx), float(sy), None)
     view._release(("mouse",), float(sx), float(sy))
     assert picked == [None]

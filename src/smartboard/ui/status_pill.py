@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - headless CI
     _QT = False
 
 
-class StatusPill(QWidget if _QT else object):  # type: ignore[valid-type,misc]
+class StatusPill(QWidget if _QT else object):  # type: ignore[misc]
     """Small pill rendering the current pipeline state triple."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -35,11 +35,13 @@ class StatusPill(QWidget if _QT else object):  # type: ignore[valid-type,misc]
         self._dot = QLabel()
         self._label = QLabel("Idle")
         self._label.setStyleSheet(
-            f"font-size: {theme.FONT_STATUS}px; color: {theme.TEXT}; background: transparent;")
+            f"font-size: {theme.FONT_STATUS}px; color: {theme.TEXT}; background: transparent;"
+        )
         layout.addWidget(self._dot)
         layout.addWidget(self._label)
         self.setStyleSheet(
-            "StatusPill { background-color: %s; border-radius: 16px; }" % theme.BUTTON_BG_ALT)
+            f"StatusPill {{ background-color: {theme.BUTTON_BG_ALT}; border-radius: 16px; }}"
+        )
         self._key = "idle"
         self.set_state("Idle")
 

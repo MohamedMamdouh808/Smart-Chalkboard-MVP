@@ -12,13 +12,31 @@ HEX_RE = re.compile(r"#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b")
 
 def test_token_groups_present() -> None:
     for name in (
-        "WINDOW_BG", "BOARD_SURFACE", "BOARD_BORDER", "BOARD_SHADOW",
-        "TEXT", "TEXT_MUTED", "TEXT_ON_ACCENT",
-        "STATE_COLORS", "OUTCOME_COLORS",
-        "FONT_FAMILY", "FONT_TRANSCRIPT", "FONT_STATUS", "FONT_BUTTON",
-        "FONT_BOARD_HEADING", "FONT_BOARD_BODY",
-        "MIC_DIAMETER", "COMPACT_CONTROL_H", "PILL_H", "DIALOG_BUTTON_H",
-        "BOARD_RADIUS", "CONTROL_RADIUS", "SPACING",
+        "WINDOW_BG",
+        "BOARD_SURFACE",
+        "BOARD_BORDER",
+        "BOARD_SHADOW",
+        "TEXT",
+        "TEXT_MUTED",
+        "TEXT_ON_ACCENT",
+        "STATE_COLORS",
+        "OUTCOME_COLORS",
+        "FONT_FAMILY",
+        "FONT_TRANSCRIPT",
+        "FONT_STATUS",
+        "FONT_BUTTON",
+        "FONT_BOARD_HEADING",
+        "FONT_BOARD_BODY",
+        "MIC_DIAMETER",
+        "COMPACT_CONTROL_H",
+        "PILL_H",
+        "DIALOG_BUTTON_H",
+        "BOARD_RADIUS",
+        "CONTROL_RADIUS",
+        "SPACING",
+        "TOOLTIP_PAD_V",
+        "TOOLTIP_PAD_H",
+        "TOOLTIP_WAKEUP_DELAY_MS",
         "CONTRAST_PAIRS",
     ):
         assert hasattr(theme, name), f"missing token {name}"
@@ -26,7 +44,12 @@ def test_token_groups_present() -> None:
 
 def test_state_and_outcome_keys_complete() -> None:
     assert set(theme.STATE_COLORS) == {"idle", "listening", "processing", "validating", "executing"}
-    assert set(theme.OUTCOME_COLORS) == {"done", "needs_confirmation", "needs_clarification", "error"}
+    assert set(theme.OUTCOME_COLORS) == {
+        "done",
+        "needs_confirmation",
+        "needs_clarification",
+        "error",
+    }
 
 
 def test_type_scale_minima() -> None:
@@ -40,8 +63,16 @@ def test_type_scale_minima() -> None:
 
 def test_stylesheet_generated_from_tokens() -> None:
     qss = theme.build_stylesheet()
-    for selector in ("QPushButton", "QPushButton:hover", "QPushButton:pressed",
-                     "QPushButton:disabled", "QPushButton:focus", "QDialog", "QLabel", "QToolTip"):
+    for selector in (
+        "QPushButton",
+        "QPushButton:hover",
+        "QPushButton:pressed",
+        "QPushButton:disabled",
+        "QPushButton:focus",
+        "QDialog",
+        "QLabel",
+        "QToolTip",
+    ):
         assert selector in qss, f"missing selector {selector}"
     assert theme.BUTTON_TEXT in qss  # token values actually land in the QSS
 
@@ -55,4 +86,4 @@ def test_no_visual_literals_outside_theme() -> None:
         for i, line in enumerate(path.read_text().splitlines(), 1):
             if HEX_RE.search(line):
                 offenders.append(f"{path.name}:{i}: {line.strip()}")
-    assert offenders == [], f"visual literals outside theme.py:\n" + "\n".join(offenders)
+    assert offenders == [], "visual literals outside theme.py:\n" + "\n".join(offenders)

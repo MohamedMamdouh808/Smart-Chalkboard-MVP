@@ -6,7 +6,7 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui.main_window import MainWindow  # noqa: E402
+from smartboard.ui.main_window import MainWindow
 
 LONG = ("Create a heading called Newton's Second Law of Motion for today's physics lesson")
 
@@ -49,3 +49,14 @@ def test_chip_and_window_visible_at_minimum(qapp: object) -> None:
         assert 0 <= top_left.x() <= 960
         assert 0 <= top_left.y() <= 540
         assert top_left.x() + widget.width() <= 960  # fully inside, never clipped
+
+
+def test_static_tooltip_texts_unchanged(qapp: object) -> None:
+    window = MainWindow()
+    try:
+        assert window.mode_button.toolTip() == "Window"
+        assert window.mic_button.toolTip() == (
+            "Speak a command (scripted demo) — click for the next utterance")
+        assert window.pen_button.toolTip() == "Toggle Pen / Select mode (P / S)"
+    finally:
+        window.close()

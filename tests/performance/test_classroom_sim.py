@@ -24,12 +24,14 @@ def test_noisy_session_with_corrections() -> None:
     corrections = 0
     for command, target, params in script:
         before = eng.board.to_dict()
-        res = eng.execute({"command": command, "target_id": target,
-                           "parameters": params, "timestamp": TS})
+        res = eng.execute(
+            {"command": command, "target_id": target, "parameters": params, "timestamp": TS}
+        )
         if not res.get("ok"):
             assert eng.board.to_dict() == before or res.get("needs_confirmation")
         if command == "undo":
             corrections += 1
     assert corrections >= 1
     assert eng.board.version >= 1
-    assert all(el.bbox_inside_canvas() for el in eng.board.elements)
+    board = eng.board
+    assert all(el.within_world_limits() for el in board.elements)

@@ -24,13 +24,22 @@ def test_empty_audio_message_and_no_ai_call() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         audio = Path(tmp) / "utt.wav"
         audio.write_bytes(b"s")
-        assert svc.transcribe_or_retry_message(audio) == "I couldn't understand the audio. Please try again."
+        assert (
+            svc.transcribe_or_retry_message(audio)
+            == "I couldn't understand the audio. Please try again."
+        )
 
 
 def test_ai_down_message_with_retry_board_preserved() -> None:
     app = build_app()
-    app.engine.execute({"command": "create_text", "target_id": None,
-                        "parameters": {"text": "keep me"}, "timestamp": TS})
+    app.engine.execute(
+        {
+            "command": "create_text",
+            "target_id": None,
+            "parameters": {"text": "keep me"},
+            "timestamp": TS,
+        }
+    )
     before = app.engine.board.to_dict()
 
     def dead() -> str:
@@ -43,8 +52,9 @@ def test_ai_down_message_with_retry_board_preserved() -> None:
 
 
 def test_network_failure_message() -> None:
-    assert "drawing still works" in (
-        "No internet connection. Voice commands are unavailable; drawing still works.")
+    message = "No internet connection. Voice commands are unavailable; drawing still works."
+    assert "drawing still works" in message
+    assert message.startswith("No internet")
 
 
 def test_db_failure_keeps_in_memory_board() -> None:
@@ -53,9 +63,16 @@ def test_db_failure_keeps_in_memory_board() -> None:
     repo = LessonRepo(conn)
     repo.create("lesson_001", "Physics")
     eng = CommandEngine()
-    eng.execute({"command": "create_text", "target_id": None, "parameters": {"text": "live"}, "timestamp": TS})
+    eng.execute(
+        {
+            "command": "create_text",
+            "target_id": None,
+            "parameters": {"text": "live"},
+            "timestamp": TS,
+        }
+    )
     conn.close()
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.Error):
         repo.save_snapshot("lesson_001", eng.board.to_dict(), "manual")
     # Board still open in memory; export fallback remains available.
     assert eng.board.elements[0].extra["text"] == "live"
@@ -64,17 +81,21 @@ def test_db_failure_keeps_in_memory_board() -> None:
 
 
 def test_render_failure_does_not_corrupt_state() -> None:
-    from smartboard.ui.board_view import layout_for_state
+    from smartboard.ui.board_paint import visible_elements
 
     eng = CommandEngine()
-    eng.execute({"command": "create_text", "target_id": None, "parameters": {"text": "hi"}, "timestamp": TS})
+    eng.execute(
+        {"command": "create_text", "target_id": None, "parameters": {"text": "hi"}, "timestamp": TS}
+    )
     before = eng.board.to_dict()
-    layout_for_state(eng.board.to_dict(), 1920, 1080)  # read-only consumer
+    visible_elements(before["elements"], (0.0, 0.0, 1920.0, 1080.0))  # read-only consumer
     assert eng.board.to_dict() == before
     assert isinstance(before["elements"], list)
 
 
 def test_save_failure_is_never_silent() -> None:
     eng = CommandEngine()
-    res = eng.execute({"command": "save_lesson", "target_id": None, "parameters": {}, "timestamp": TS})
+    res = eng.execute(
+        {"command": "save_lesson", "target_id": None, "parameters": {}, "timestamp": TS}
+    )
     assert res["ok"] and res.get("saved") is True

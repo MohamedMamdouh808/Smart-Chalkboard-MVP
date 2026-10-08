@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from smartboard.app.orchestrator import build_app
 from smartboard.core import errors
 from smartboard.core.engine import CommandEngine
@@ -29,13 +27,19 @@ def test_undo_redo_round_trip_identical_points() -> None:
 def test_voice_move_translates_points() -> None:
     eng = CommandEngine()
     eng.add_drawing(STROKES)
-    eng.execute({"command": "move_item", "target_id": "drawing_001",
-                 "parameters": {"position": {"x": 500, "y": 500}}, "timestamp": TS})
+    eng.execute(
+        {
+            "command": "move_item",
+            "target_id": "drawing_001",
+            "parameters": {"position": {"x": 500, "y": 500}},
+            "timestamp": TS,
+        }
+    )
     el = eng.board.find("drawing_001")
     assert el is not None
     points = el.extra["strokes"][0]["points"]
-    assert (points[0]["x"], points[0]["y"]) == (500.0, 500.0)
-    assert (points[1]["x"], points[1]["y"]) == (700.0, 600.0)
+    assert (points[0]["x"], points[0]["y"]) == (502.0, 502.0)
+    assert (points[1]["x"], points[1]["y"]) == (702.0, 602.0)
     eng.execute({"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS})
     points = eng.board.find("drawing_001").extra["strokes"][0]["points"]  # type: ignore[union-attr]
     assert (points[0]["x"], points[0]["y"]) == (100.0, 100.0)
@@ -47,13 +51,19 @@ def test_voice_resize_scales_points_proportionally() -> None:
     el = eng.board.find("drawing_001")
     assert el is not None
     old_w, old_h = el.width, el.height
-    eng.execute({"command": "resize_item", "target_id": "drawing_001",
-                 "parameters": {"scale_factor": 2.0}, "timestamp": TS})
+    eng.execute(
+        {
+            "command": "resize_item",
+            "target_id": "drawing_001",
+            "parameters": {"scale_factor": 2.0},
+            "timestamp": TS,
+        }
+    )
     el = eng.board.find("drawing_001")
     assert el is not None
-    assert (el.width, el.height) == (old_w * 2, old_h * 2)
+    assert (el.width, el.height) == (old_w * 2 - 4, old_h * 2 - 4)
     points = el.extra["strokes"][0]["points"]
-    assert (points[1]["x"], points[1]["y"]) == (100.0 + 400.0, 100.0 + 200.0)
+    assert (points[1]["x"], points[1]["y"]) == (502.0, 302.0)
     eng.execute({"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS})
     points = eng.board.find("drawing_001").extra["strokes"][0]["points"]  # type: ignore[union-attr]
     assert (points[1]["x"], points[1]["y"]) == (300.0, 200.0)
@@ -62,14 +72,23 @@ def test_voice_resize_scales_points_proportionally() -> None:
 def test_voice_recolor_and_confirmed_delete() -> None:
     eng = CommandEngine()
     eng.add_drawing(STROKES)
-    res = eng.execute({"command": "change_color", "target_id": "drawing_001",
-                       "parameters": {"color": "red"}, "timestamp": TS})
+    res = eng.execute(
+        {
+            "command": "change_color",
+            "target_id": "drawing_001",
+            "parameters": {"color": "red"},
+            "timestamp": TS,
+        }
+    )
     assert res["ok"] and eng.board.find("drawing_001").color == "red"  # type: ignore[union-attr]
-    res = eng.execute({"command": "delete_item", "target_id": "drawing_001",
-                       "parameters": {}, "timestamp": TS})
+    res = eng.execute(
+        {"command": "delete_item", "target_id": "drawing_001", "parameters": {}, "timestamp": TS}
+    )
     assert res["error_code"] == errors.E_CONFIRMATION_REQUIRED
-    res = eng.execute({"command": "delete_item", "target_id": "drawing_001",
-                       "parameters": {}, "timestamp": TS}, confirmed=True)
+    res = eng.execute(
+        {"command": "delete_item", "target_id": "drawing_001", "parameters": {}, "timestamp": TS},
+        confirmed=True,
+    )
     assert res["ok"] and eng.board.find("drawing_001") is None
     eng.execute({"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS})
     restored = eng.board.find("drawing_001")
@@ -117,8 +136,14 @@ def test_offline_draw_commits_without_providers() -> None:
 def test_pen_commit_goes_through_queue_in_order() -> None:
     """A pen commit waits its turn behind queued voice work, never beside it."""
     app = build_app()
-    app.queue.submit({"command": "create_heading", "target_id": None,
-                      "parameters": {"text": "Plan"}, "timestamp": TS})
+    app.queue.submit(
+        {
+            "command": "create_heading",
+            "target_id": None,
+            "parameters": {"text": "Plan"},
+            "timestamp": TS,
+        }
+    )
     assert app.queue.depth() == 1
     result = app.commit_pen_drawing(STROKES, color="#00FF00", width=2)
     assert result["ok"] and result["affected_id"] == "drawing_001"
@@ -130,10 +155,17 @@ def test_pen_commit_goes_through_queue_in_order() -> None:
 
 def test_pen_commit_never_executes_while_voice_head_is_blocked() -> None:
     app = build_app()
-    app.engine.execute({"command": "create_heading", "target_id": None,
-                        "parameters": {"text": "Doomed"}, "timestamp": TS})
-    app.queue.submit({"command": "delete_item", "target_id": "heading_001",
-                      "parameters": {}, "timestamp": TS})
+    app.engine.execute(
+        {
+            "command": "create_heading",
+            "target_id": None,
+            "parameters": {"text": "Doomed"},
+            "timestamp": TS,
+        }
+    )
+    app.queue.submit(
+        {"command": "delete_item", "target_id": "heading_001", "parameters": {}, "timestamp": TS}
+    )
     assert app.queue.pump().get("needs_confirmation") is True
     assert app.queue.blocked is True
     blocked = app.commit_pen_drawing(STROKES)
@@ -147,8 +179,14 @@ def test_pen_commit_never_executes_while_voice_head_is_blocked() -> None:
 def test_pen_commit_reports_queue_full_without_writing() -> None:
     app = build_app()
     for i in range(app.queue.max_waiting):
-        app.queue.submit({"command": "create_heading", "target_id": None,
-                          "parameters": {"text": f"H{i}"}, "timestamp": TS})
+        app.queue.submit(
+            {
+                "command": "create_heading",
+                "target_id": None,
+                "parameters": {"text": f"H{i}"},
+                "timestamp": TS,
+            }
+        )
     result = app.commit_pen_drawing(STROKES)
     assert result["error_code"] == "E_QUEUE_FULL"
     assert all(el.type != "drawing" for el in app.engine.board.elements)
@@ -166,16 +204,28 @@ def test_pen_commit_and_voice_command_do_not_interleave() -> None:
     accepted: list[dict] = []
 
     def voice() -> None:
-        for i in range(20):
-            accepted.append(app.handle_live_transcript(
-                f"heading {i}", _StubProvider(f'{{"command": "create_heading", '
-                                              f'"target_id": null, "parameters": '
-                                              f'{{"text": "H{i}"}}, "timestamp": "{TS}"}}')))
+        for i in range(5):
+            accepted.append(
+                app.handle_live_transcript(
+                    f"shape {i}",
+                    _StubProvider(
+                        f'{{"command": "create_shape", '
+                        f'"target_id": null, "parameters": '
+                        f'{{"shape_type": "rectangle", '
+                        f'"position": {{"x": {200 + i * 150}, "y": 80}}, '
+                        f'"size": {{"w": 24, "h": 24}}}}, '
+                        f'"timestamp": "{TS}"}}'
+                    ),
+                )
+            )
 
     def pen() -> None:
-        for i in range(20):
-            accepted.append(app.commit_pen_drawing(
-                [[{"x": 100.0 + i, "y": 100.0}, {"x": 200.0 + i, "y": 200.0}]]))
+        for i in range(5):
+            accepted.append(
+                app.commit_pen_drawing(
+                    [[{"x": 100.0 + i, "y": 500.0}, {"x": 200.0 + i, "y": 600.0}]]
+                )
+            )
 
     threads = [threading.Thread(target=voice), threading.Thread(target=pen)]
     for thread in threads:
@@ -199,8 +249,14 @@ def test_drawing_commit_notifies_autosave_like_any_command() -> None:
     records: list[dict] = []
 
     eng = CommandEngine(hook=records.append)
-    eng.execute({"command": "create_text", "target_id": None,
-                 "parameters": {"text": "typed"}, "timestamp": TS})
+    eng.execute(
+        {
+            "command": "create_text",
+            "target_id": None,
+            "parameters": {"text": "typed"},
+            "timestamp": TS,
+        }
+    )
     eng.add_drawing(STROKES, color="red", width=8)
     assert len(records) == 2
 

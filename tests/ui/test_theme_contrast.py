@@ -32,3 +32,8 @@ def test_state_and_outcome_colors_all_paired() -> None:
     paired = {(fg, bg) for fg, bg, _ in theme.CONTRAST_PAIRS}
     for color in (*theme.STATE_COLORS.values(), *theme.OUTCOME_COLORS.values()):
         assert any(bg == color or fg == color for fg, bg in paired), f"unpaired color {color}"
+
+
+def test_tooltip_text_background_meets_normal_aa() -> None:
+    assert theme.BUTTON_BG.upper() != "#FFFFFF"
+    assert ratio(theme.TEXT, theme.BUTTON_BG) >= 4.5

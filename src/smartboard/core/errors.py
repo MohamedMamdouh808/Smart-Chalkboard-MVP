@@ -19,7 +19,7 @@ MESSAGES: dict[str, str] = {
     E_PARAM_INVALID: "That command can't be applied: invalid value.",
     E_TARGET_MISSING: "Select an object first, then try again.",
     E_TARGET_NOT_FOUND: "That object no longer exists. Please select again.",
-    E_OUT_OF_BOUNDS: "That would move it off the board, so it was not applied.",
+    E_OUT_OF_BOUNDS: "That value is outside the supported numeric range, so it was not applied.",
     E_NOTHING_TO_UNDO: "Nothing to undo.",
     E_NOTHING_TO_REDO: "Nothing to redo.",
     E_CONFIRMATION_REQUIRED: "Confirmation needed.",

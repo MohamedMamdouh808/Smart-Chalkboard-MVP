@@ -32,7 +32,8 @@ def fits_in_box(text: str, box_w: int, box_h: int, font: Any) -> bool:
     from PyQt6.QtGui import QFontMetrics
 
     flags = int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) | int(
-        Qt.TextFlag.TextWordWrap)
+        Qt.TextFlag.TextWordWrap
+    )
     rect = QFontMetrics(font).boundingRect(0, 0, box_w, box_h, flags, text)
     return rect.width() <= box_w and rect.height() <= box_h
 

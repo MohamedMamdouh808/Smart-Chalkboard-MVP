@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 class GeminiProvider:
-    def __init__(self, api_key: str, timeout_s: float = 2.0,
-                 caller: Callable[..., str] | None = None) -> None:
+    def __init__(
+        self, api_key: str, timeout_s: float = 2.0, caller: Callable[..., str] | None = None
+    ) -> None:
         if not api_key:
             raise ValueError("Gemini API key is required (env GEMINI_API_KEY).")
         self._api_key = api_key
@@ -19,8 +21,8 @@ class GeminiProvider:
             return {"raw_text": self._caller(transcript, context)}
         import google.generativeai as genai  # lazy
 
-        genai.configure(api_key=self._api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        genai.configure(api_key=self._api_key)  # type: ignore[attr-defined]
+        model = genai.GenerativeModel("gemini-1.5-flash")  # type: ignore[attr-defined]
         response = model.generate_content(
             f"Convert to a board command JSON. Transcript: {transcript!r} Context: {context!r}",
             generation_config={"response_mime_type": "application/json"},
@@ -34,8 +36,13 @@ class GroqProvider:
 
     DEFAULT_MODEL = "openai/gpt-oss-20b"
 
-    def __init__(self, api_key: str, model: str = DEFAULT_MODEL, timeout_s: float = 4.0,
-                 caller: Callable[..., str] | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = DEFAULT_MODEL,
+        timeout_s: float = 4.0,
+        caller: Callable[..., str] | None = None,
+    ) -> None:
         if not api_key:
             raise ValueError("AI is not configured (missing GROQ_API_KEY).")
         self._api_key = api_key

@@ -6,7 +6,7 @@ import pytest
 
 QtGui = pytest.importorskip("PyQt6.QtGui")
 
-from smartboard.app.text_fit import (  # noqa: E402
+from smartboard.app.text_fit import (
     TOO_LONG_MESSAGE,
     check_create,
     fits_in_box,

@@ -22,6 +22,8 @@ htmlcov/
 *.wav
 *.mp3
 temp_audio/
+# Narrow exception: one synthetic speech fixture for the real-model test.
+!tests/fixtures/audio/*.wav
 # SQLite local data
 *.db
 *.db-wal

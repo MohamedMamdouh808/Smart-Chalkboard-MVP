@@ -45,6 +45,7 @@ OUTCOME_COLORS: dict[str, str] = {
 SELECTION = "#FFEB3B"
 HIGHLIGHT = "#69F0AE"
 EQUATION = "#FFE082"
+GRID_DOT = "#3a3a5c"
 
 STATE_ICONS: dict[str, str] = {
     "idle": "dot-idle",
@@ -84,6 +85,9 @@ BOARD_RADIUS = 24
 CONTROL_RADIUS = 8
 HANDLE_SIZE = 14
 SPACING = 16
+TOOLTIP_PAD_V = 6
+TOOLTIP_PAD_H = 10
+TOOLTIP_WAKEUP_DELAY_MS = 500
 
 # -- contrast pairs (fg, bg, kind) --------------------------------------------
 # kind "normal" → ≥4.5:1, kind "large" → ≥3:1 (WCAG AA).
@@ -98,8 +102,8 @@ CONTRAST_PAIRS: tuple[tuple[str, str, str], ...] = (
     (TEXT, BUTTON_HOVER_BG, "normal"),
     (TEXT, BUTTON_PRESSED_BG, "normal"),
     (TEXT, INPUT_BG, "normal"),
-    *( (color, BUTTON_BG, "large") for color in STATE_COLORS.values() ),
-    *( (color, BUTTON_BG, "large") for color in OUTCOME_COLORS.values() ),
+    *((color, BUTTON_BG, "large") for color in STATE_COLORS.values()),
+    *((color, BUTTON_BG, "large") for color in OUTCOME_COLORS.values()),
     (SELECTION, BOARD_SURFACE, "large"),
     (HIGHLIGHT, BOARD_SURFACE, "large"),
     (TEXT_ON_ACCENT, SELECTION, "normal"),
@@ -135,7 +139,9 @@ def build_stylesheet() -> str:
     return f"""
 QMainWindow, QWidget#root {{ background-color: {WINDOW_BG}; }}
 QLabel {{ color: {TEXT}; font-family: "{FONT_FAMILY}"; }}
-QToolTip {{ color: {TEXT}; background-color: {BUTTON_BG}; font-size: {FONT_BUTTON}px; }}
+QToolTip {{ color: {TEXT}; background-color: {BUTTON_BG}; font-size: {FONT_BUTTON}px;
+  border: 1px solid {BUTTON_BORDER}; border-radius: {CONTROL_RADIUS}px;
+  padding: {TOOLTIP_PAD_V}px {TOOLTIP_PAD_H}px; }}
 QPushButton {{
   font-family: "{FONT_FAMILY}"; font-size: {FONT_BUTTON}px; color: {TEXT};
   background-color: {BUTTON_BG}; border: 1px solid {BUTTON_BORDER};
@@ -167,7 +173,7 @@ def dialog_stylesheet() -> str:
     """Shared dialog chrome (same theme, large buttons)."""
     return (
         f"QDialog {{ background-color: {WINDOW_BG}; color: {TEXT}; "
-        f"font-family: \"{FONT_FAMILY}\"; }}"
+        f'font-family: "{FONT_FAMILY}"; }}'
         f"QDialog QLabel {{ color: {TEXT}; font-size: {FONT_STATUS}px; }}"
         f"QDialog QPushButton {{ min-width: 220px; min-height: {DIALOG_BUTTON_H}px; "
         f"font-size: {FONT_BUTTON + 4}px; color: {TEXT}; background-color: {BUTTON_BG}; "

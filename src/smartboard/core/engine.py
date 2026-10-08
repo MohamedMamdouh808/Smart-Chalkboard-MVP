@@ -3,23 +3,21 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from . import errors
-from .board import Board, Element
+from .board import MIN_SIZE, Board, Element
 from .command_schema import validate_shape
 from .element_ids import IdGenerator
 from .history import History
-from .validators import TARGET_COMMANDS, fits_canvas, resolve_move, validate_params
+from .validators import TARGET_COMMANDS, resolve_move, validate_params, within_world_limits
 
 EngineResult = dict[str, Any]
 HistoryHook = Callable[[dict[str, Any]], None]
 
 CONFIRM_COMMANDS: tuple[str, ...] = ("delete_item", "clear_board")
-TOP_MARGIN_Y = 80
-DEFAULT_X = 160
-SLOT_GAP = 40
 
 
 class CommandEngine:
@@ -66,12 +64,20 @@ class CommandEngine:
         if command in TARGET_COMMANDS:
             target = self._resolve_target(target_id, params)
             if target is None:
-                if target_id is None and not params.get("use_selection") and "position" not in params:
+                if (
+                    target_id is None
+                    and not params.get("use_selection")
+                    and "position" not in params
+                ):
                     return self._clarify(command)
                 missing = self.board.selected_element_id is None and target_id is None
                 if missing:
-                    return self._fail(errors.E_TARGET_MISSING, errors.message_for(errors.E_TARGET_MISSING))
-                return self._fail(errors.E_TARGET_NOT_FOUND, errors.message_for(errors.E_TARGET_NOT_FOUND))
+                    return self._fail(
+                        errors.E_TARGET_MISSING, errors.message_for(errors.E_TARGET_MISSING)
+                    )
+                return self._fail(
+                    errors.E_TARGET_NOT_FOUND, errors.message_for(errors.E_TARGET_NOT_FOUND)
+                )
 
         if command in CONFIRM_COMMANDS and not confirmed:
             return {
@@ -102,7 +108,9 @@ class CommandEngine:
             elif command == "change_color":
                 affected, inverse = self._do_color(target, params)
             else:  # pragma: no cover - schema blocks unknown commands
-                return self._fail(errors.E_UNSUPPORTED_COMMAND, errors.message_for(errors.E_UNSUPPORTED_COMMAND))
+                return self._fail(
+                    errors.E_UNSUPPORTED_COMMAND, errors.message_for(errors.E_UNSUPPORTED_COMMAND)
+                )
         except _Reject as exc:
             self.board.restore(snapshot)
             return self._fail(exc.code, exc.message)
@@ -116,18 +124,22 @@ class CommandEngine:
                     "command_json": copy.deepcopy(raw),
                     "inverse_json": copy.deepcopy(inverse),
                     "source": source,
-                    "executed_at": datetime.now(timezone.utc).isoformat(),
+                    "executed_at": datetime.now(UTC).isoformat(),
                 }
             )
         return {"ok": True, "state_version": self.board.version, "affected_id": affected}
 
     def add_drawing(
-        self, strokes: list[list[dict[str, Any]]], color: str = "#FFFFFF", width: int = 4,
+        self,
+        strokes: list[list[dict[str, Any]]],
+        color: str = "#FFFFFF",
+        width: int = 4,
         source: str = "pen",
     ) -> EngineResult:
         """Internal pen-commit path (not an AI command). Same validation/history."""
-        from .board import (DRAWING_WIDTHS, DEFAULT_DRAWING_WIDTH, clip_point,
-                            drawing_bbox, reduce_points)
+        import math as _math
+
+        from .board import DEFAULT_DRAWING_WIDTH, DRAWING_WIDTHS, MAX_WORLD_COORD, reduce_points
 
         if width not in DRAWING_WIDTHS:
             width = DEFAULT_DRAWING_WIDTH
@@ -136,8 +148,15 @@ class CommandEngine:
             points = []
             for point in stroke:
                 try:
-                    x, y = clip_point(float(point["x"]), float(point["y"]))
+                    x, y = float(point["x"]), float(point["y"])
                 except (KeyError, TypeError, ValueError):
+                    continue
+                if (
+                    not _math.isfinite(x)
+                    or not _math.isfinite(y)
+                    or abs(x) > MAX_WORLD_COORD
+                    or abs(y) > MAX_WORLD_COORD
+                ):
                     continue
                 kept: dict[str, Any] = {"x": x, "y": y}
                 if "pressure" in point:
@@ -146,22 +165,22 @@ class CommandEngine:
             if points:
                 wrapped.append({"points": reduce_points(points), "width": width, "color": color})
         if not wrapped:
-            return self._fail(errors.E_OUT_OF_BOUNDS, "The drawing is outside the board.")
+            return self._fail(errors.E_PARAM_INVALID, "The drawing has no usable points.")
         new_id = self.ids.next("drawing")
-        x, y, w, h = drawing_bbox([s["points"] for s in wrapped])
         element = Element(
             id=new_id,
             type="drawing",
-            x=x,
-            y=y,
-            width=w,
-            height=h,
+            x=0,
+            y=0,
+            width=MIN_SIZE,
+            height=MIN_SIZE,
             color=color,
             z=self.board.top_z() + 1,
             extra={"strokes": copy.deepcopy(wrapped), "width": width},
         )
-        if not element.bbox_inside_canvas():
-            return self._fail(errors.E_OUT_OF_BOUNDS, "There is no room on the board for this drawing.")
+        element.refresh_drawing_bounds()
+        if not element.within_world_limits():
+            return self._fail(errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS))
         self.board.elements.append(element)
         self.board.version += 1
         raw = {"command": "add_drawing", "target_id": None, "parameters": {"color": color}}
@@ -174,7 +193,7 @@ class CommandEngine:
                     "command_json": copy.deepcopy(raw),
                     "inverse_json": copy.deepcopy(inverse),
                     "source": source,
-                    "executed_at": datetime.now(timezone.utc).isoformat(),
+                    "executed_at": datetime.now(UTC).isoformat(),
                 }
             )
         return {"ok": True, "state_version": self.board.version, "affected_id": new_id}
@@ -190,6 +209,148 @@ class CommandEngine:
         self.board.selected_element_id = element_id
         return {"ok": True, "state_version": self.board.version, "affected_id": element_id}
 
+    def manual_resize(
+        self,
+        target_id: str | None,
+        params: dict[str, Any],
+        anchor: dict[str, Any] | None,
+        timestamp: str,
+        source: str = "ui",
+    ) -> EngineResult:
+        """UI-sourced fixed-corner resize using the existing resize operation.
+
+        The public resize payload and history command remain standard; anchor
+        metadata is engine-method input only and is never AI-addressable.
+        """
+        from .board import drawing_fixed_anchor, scale_points
+        from .command_schema import validate_shape
+        from .validators import validate_params
+
+        raw = {
+            "command": "resize_item",
+            "target_id": target_id,
+            "parameters": params,
+            "timestamp": timestamp,
+        }
+        ok, code, message = validate_shape(raw)
+        if not ok:
+            return self._fail(code, message)
+        ok, code, message = validate_params("resize_item", params)
+        if not ok:
+            return self._fail(code, message)
+        target = self._resolve_target(target_id, params)
+        if target is None:
+            return self._fail(
+                errors.E_TARGET_NOT_FOUND, errors.message_for(errors.E_TARGET_NOT_FOUND)
+            )
+        if not isinstance(anchor, dict):
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "resize")
+            )
+        try:
+            fixed = (
+                self._checked_world_int(anchor["x"], "resize"),
+                self._checked_world_int(anchor["y"], "resize"),
+            )
+            fixed_corner = str(anchor["fixed_corner"])
+            new_w = self._checked_world_int(params["size"]["w"], "size")
+            new_h = self._checked_world_int(params["size"]["h"], "size")
+        except (KeyError, TypeError, ValueError):
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "resize")
+            )
+        except _Reject as exc:
+            return self._fail(exc.code, exc.message)
+        if fixed_corner == "se":
+            new_x, new_y = fixed[0] - new_w, fixed[1] - new_h
+        elif fixed_corner == "sw":
+            new_x, new_y = fixed[0], fixed[1] - new_h
+        elif fixed_corner == "ne":
+            new_x, new_y = fixed[0] - new_w, fixed[1]
+        elif fixed_corner == "nw":
+            new_x, new_y = fixed
+        else:
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "resize")
+            )
+        if not within_world_limits(new_x, new_y, new_w, new_h):
+            return self._fail(errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS))
+        if target.width <= 0 or target.height <= 0:
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "resize")
+            )
+        before = copy.deepcopy(target.to_dict())
+        old_width, old_height = target.width, target.height
+        target.x, target.y = new_x, new_y
+        target.width, target.height = new_w, new_h
+        if target.type == "drawing":
+            point_lists = self._drawing_point_lists(target)
+            anchor_point = drawing_fixed_anchor(point_lists, fixed_corner, fixed)
+            scale_points(
+                point_lists, anchor_point[0], anchor_point[1], new_w / old_width, new_h / old_height
+            )
+            target.refresh_drawing_bounds()
+        self.board.selected_element_id = target.id
+        inverse = self._swap_inverse(before, target.to_dict())
+        self.board.version += 1
+        entry = self.history.record(raw, inverse, source)
+        if self.hook is not None:
+            self.hook(
+                {
+                    "seq": entry.seq,
+                    "command_json": copy.deepcopy(raw),
+                    "inverse_json": copy.deepcopy(inverse),
+                    "source": source,
+                    "executed_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        return {"ok": True, "state_version": self.board.version, "affected_id": target.id}
+
+    def edit_text(self, target_id: str | None, text: Any, source: str = "ui") -> EngineResult:
+        """Internal inline-text edit (not an AI command). Same validation/history.
+
+        Public command validation MUST keep rejecting ``edit_text``; only
+        trusted UI/application code may call this entry point.
+        """
+        target = self.board.find(target_id) if isinstance(target_id, str) else None
+        if target is None:
+            return self._fail(
+                errors.E_TARGET_NOT_FOUND, errors.message_for(errors.E_TARGET_NOT_FOUND)
+            )
+        if target.type not in ("heading", "text"):
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "text")
+            )
+        if not isinstance(text, str) or not text.strip():
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "text")
+            )
+        cleaned = text.strip()
+        limit = 200 if target.type == "heading" else 2000
+        if len(cleaned) > limit:
+            return self._fail(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "text")
+            )
+        before = copy.deepcopy(target.to_dict())
+        target.extra["text"] = cleaned
+        self.board.selected_element_id = target.id
+        after = copy.deepcopy(target.to_dict())
+        self.board.version += 1
+        raw = {"command": "edit_text", "target_id": target.id, "parameters": {"text": cleaned}}
+        inverse = self._swap_inverse(before, after)
+        entry = self.history.record(raw, inverse, source)
+        if self.hook is not None:
+            self.hook(
+                {
+                    "seq": entry.seq,
+                    "command_json": copy.deepcopy(raw),
+                    "inverse_json": copy.deepcopy(inverse),
+                    "source": source,
+                    "executed_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        return {"ok": True, "state_version": self.board.version, "affected_id": target.id}
+
     # -- meta commands --------------------------------------------------
     def _execute_meta(
         self,
@@ -202,7 +363,9 @@ class CommandEngine:
     ) -> EngineResult:
         if command == "undo":
             if not self.history.can_undo():
-                return self._fail(errors.E_NOTHING_TO_UNDO, errors.message_for(errors.E_NOTHING_TO_UNDO))
+                return self._fail(
+                    errors.E_NOTHING_TO_UNDO, errors.message_for(errors.E_NOTHING_TO_UNDO)
+                )
             entry = self.history.undo_entry()
             assert entry is not None
             self._apply_inverse(entry.inverse)
@@ -210,14 +373,21 @@ class CommandEngine:
             return {"ok": True, "state_version": self.board.version, "affected_id": None}
         if command == "redo":
             if not self.history.can_redo():
-                return self._fail(errors.E_NOTHING_TO_REDO, errors.message_for(errors.E_NOTHING_TO_REDO))
+                return self._fail(
+                    errors.E_NOTHING_TO_REDO, errors.message_for(errors.E_NOTHING_TO_REDO)
+                )
             entry = self.history.redo_entry()
             assert entry is not None
             self._apply_forward(entry.command, entry.inverse)
             self.board.version += 1
             return {"ok": True, "state_version": self.board.version, "affected_id": None}
         if command == "save_lesson":
-            return {"ok": True, "state_version": self.board.version, "affected_id": None, "saved": True}
+            return {
+                "ok": True,
+                "state_version": self.board.version,
+                "affected_id": None,
+                "saved": True,
+            }
         # new_lesson: persistence action, never mutates board here
         if dirty and not confirmed:
             return {
@@ -226,27 +396,50 @@ class CommandEngine:
                 "message": "You have unsaved changes. Save first? [Cancel] [Confirm]",
                 "needs_confirmation": True,
             }
-        return {"ok": True, "state_version": self.board.version, "affected_id": None, "new_lesson": True}
+        return {
+            "ok": True,
+            "state_version": self.board.version,
+            "affected_id": None,
+            "new_lesson": True,
+        }
 
     # -- creators --------------------------------------------------------
-    def _slot_y(self, height: int) -> int:
-        if not self.board.elements:
-            return TOP_MARGIN_Y
-        return self.board.lowest_bottom() + SLOT_GAP
+    def _checked_world_int(self, value: Any, detail: str) -> int:
+        import math as _math
+
+        from .board import MAX_WORLD_COORD
+
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise _Reject(
+                errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, detail)
+            )
+        if not _math.isfinite(number) or abs(number) > MAX_WORLD_COORD:
+            raise _Reject(errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS))
+        return int(number)
 
     def _do_create(self, kind: str, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         text = str(params["text"]).strip() if kind in ("heading", "text") else ""
         if kind == "heading":
             width, height = 800, 96
         elif kind == "text":
-            width, height = (320, 80) if params.get("equation_style") else (600, 120)
+            if params.get("equation_style"):
+                width, height = 320, 80
+            else:
+                width, height = 600, 120
         else:
             size = params.get("size", {})
-            width = int(size.get("w", 200))
-            height = int(size.get("h", 200))
+            if "w" in size or "h" in size:
+                width = self._checked_world_int(size.get("w", 200), "size")
+                height = self._checked_world_int(size.get("h", 200), "size")
+            else:
+                width, height = 200, 200
         pos = params.get("position", {})
-        x = int(pos.get("x", DEFAULT_X))
-        y = int(pos.get("y", self._slot_y(height)))
+        # Direct engine calls without a position use the world origin. Voice/UI
+        # paths supply explicit visible-viewport positions before queueing.
+        x = self._checked_world_int(pos.get("x", 0), "position")
+        y = self._checked_world_int(pos.get("y", 0), "position")
         color = str(params.get("color", "#FFFFFF"))
         extra: dict[str, Any] = {}
         if kind in ("heading", "text"):
@@ -257,12 +450,17 @@ class CommandEngine:
             extra["shape_type"] = str(params["shape_type"])
         new_id = self.ids.next(kind)
         element = Element(
-            id=new_id, type=kind, x=x, y=y, width=width, height=height,
-            color=color, z=self.board.top_z() + 1, extra=extra,
+            id=new_id,
+            type=kind,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            color=color,
+            z=self.board.top_z() + 1,
+            extra=extra,
         )
-        if not element.bbox_inside_canvas():
-            if kind == "heading":
-                raise _Reject(errors.E_OUT_OF_BOUNDS, "There is no room on the board for this heading.")
+        if not element.within_world_limits():
             raise _Reject(errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS))
         self.board.elements.append(element)
         self.board.selected_element_id = new_id
@@ -285,26 +483,55 @@ class CommandEngine:
         redo restores `after` (point data included)."""
         return {"op": "swap", "id": before["id"], "element": before, "forward": after}
 
-    def _do_move(self, target: Element | None, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def _do_move(
+        self, target: Element | None, params: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
         from .board import translate_points
 
         assert target is not None
         old = (target.x, target.y)
+        if "relative" in params:
+            import math as _math
+
+            distance = params["relative"].get("distance")
+            if isinstance(distance, bool):
+                raise _Reject(
+                    errors.E_PARAM_INVALID, errors.message_for(errors.E_PARAM_INVALID, "distance")
+                )
+            if isinstance(distance, (int, float)):
+                try:
+                    number = float(distance)
+                except (TypeError, ValueError):
+                    raise _Reject(
+                        errors.E_PARAM_INVALID,
+                        errors.message_for(errors.E_PARAM_INVALID, "distance"),
+                    )
+                if not _math.isfinite(number):
+                    raise _Reject(
+                        errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS)
+                    )
+        elif "position" in params:
+            position = params["position"]
+            self._checked_world_int(position.get("x", 0), "position")
+            self._checked_world_int(position.get("y", 0), "position")
         new_x, new_y = resolve_move(params, target.x, target.y)
-        if not fits_canvas(new_x, new_y, target.width, target.height):
+        if not within_world_limits(new_x, new_y, target.width, target.height):
             raise _Reject(errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS))
         if target.type == "drawing":
             before = copy.deepcopy(target.to_dict())
             dx, dy = new_x - target.x, new_y - target.y
             target.x, target.y = new_x, new_y
             translate_points(self._drawing_point_lists(target), dx, dy)
+            target.refresh_drawing_bounds()
             self.board.selected_element_id = target.id
             return target.id, self._swap_inverse(before, target.to_dict())
         target.x, target.y = new_x, new_y
         self.board.selected_element_id = target.id
         return target.id, {"op": "move", "id": target.id, "x": old[0], "y": old[1]}
 
-    def _do_resize(self, target: Element | None, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def _do_resize(
+        self, target: Element | None, params: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
         from .board import scale_points
 
         assert target is not None
@@ -313,15 +540,16 @@ class CommandEngine:
             scale = float(params["scale_factor"])
             new_w, new_h = int(target.width * scale), int(target.height * scale)
         else:
-            new_w, new_h = int(params["size"]["w"]), int(params["size"]["h"])
-        if not fits_canvas(target.x, target.y, new_w, new_h):
+            new_w = self._checked_world_int(params["size"]["w"], "size")
+            new_h = self._checked_world_int(params["size"]["h"], "size")
+        if not within_world_limits(target.x, target.y, new_w, new_h):
             raise _Reject(errors.E_OUT_OF_BOUNDS, errors.message_for(errors.E_OUT_OF_BOUNDS))
         if target.type == "drawing" and old[0] > 0 and old[1] > 0:
             before = copy.deepcopy(target.to_dict())
             ox, oy = target.x, target.y
             target.width, target.height = new_w, new_h
-            scale_points(self._drawing_point_lists(target), ox, oy,
-                         new_w / old[0], new_h / old[1])
+            scale_points(self._drawing_point_lists(target), ox, oy, new_w / old[0], new_h / old[1])
+            target.refresh_drawing_bounds()
             self.board.selected_element_id = target.id
             return target.id, self._swap_inverse(before, target.to_dict())
         target.width, target.height = new_w, new_h
@@ -344,7 +572,9 @@ class CommandEngine:
         self.board.selected_element_id = None
         return None, {"op": "restore_all", "elements": saved}
 
-    def _do_color(self, target: Element | None, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def _do_color(
+        self, target: Element | None, params: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
         assert target is not None
         if target.type == "drawing":
             # Strokes carry their own colour and win at render time, so a
@@ -409,13 +639,21 @@ class CommandEngine:
             elif name == "add_drawing":
                 self.board.elements.append(
                     Element(
-                        id=str(inverse["id"]), type="drawing", x=DEFAULT_X, y=TOP_MARGIN_Y,
-                        width=320, height=120, color="#FFFFFF",
-                        z=self.board.top_z() + 1, extra={"strokes": []},
+                        id=str(inverse["id"]),
+                        type="drawing",
+                        x=0,
+                        y=0,
+                        width=320,
+                        height=120,
+                        color="#FFFFFF",
+                        z=self.board.top_z() + 1,
+                        extra={"strokes": []},
                     )
                 )
         elif op == "restore":
-            self.board.elements = [el for el in self.board.elements if el.id != str(inverse["element"]["id"])]
+            self.board.elements = [
+                el for el in self.board.elements if el.id != str(inverse["element"]["id"])
+            ]
         elif op == "restore_all":
             self.board.elements = []
         elif op == "move":

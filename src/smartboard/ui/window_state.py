@@ -40,7 +40,7 @@ def load_mode(settings: Any | None = None) -> str:
     settings = settings or make_settings()
     try:
         mode = str(settings.value(MODE_KEY, MODE_FULLSCREEN))
-    except Exception:
+    except Exception:  # noqa: BLE001 - settings faults fall back to defaults
         return MODE_FULLSCREEN
     return mode if mode in (MODE_FULLSCREEN, MODE_NORMAL, MODE_MAXIMIZED) else MODE_FULLSCREEN
 
@@ -52,14 +52,13 @@ def load_pen_width(settings: Any | None = None) -> int:
     settings = settings or make_settings()
     try:
         name = str(settings.value(PEN_WIDTH_KEY, DEFAULT_PEN_WIDTH_NAME))
-    except Exception:
+    except Exception:  # noqa: BLE001 - settings faults fall back to defaults
         return DEFAULT_DRAWING_WIDTH
     return PEN_WIDTHS.get(name, DEFAULT_DRAWING_WIDTH)
 
 
 def save_pen_width_name(name: str, settings: Any | None = None) -> int:
     """Persist a thin/medium/thick choice; unknown names keep the default."""
-    from smartboard.core.board import DEFAULT_DRAWING_WIDTH
 
     if name not in PEN_WIDTHS:
         name = DEFAULT_PEN_WIDTH_NAME
@@ -87,6 +86,6 @@ def restore_state(window: Any, settings: Any | None = None) -> str:
         if rect is not None and mode != MODE_FULLSCREEN:
             x, y, w, h = (int(v) for v in rect)
             window.setGeometry(x, y, max(w, 0), max(h, 0))
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 - geometry restore faults are silently ignored
         pass
     return mode

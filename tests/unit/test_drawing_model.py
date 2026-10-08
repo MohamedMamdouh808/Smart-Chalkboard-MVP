@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 
 from smartboard.core.board import (
+    DEFAULT_DRAWING_WIDTH,
     POINT_REDUCTION_DISTANCE,
-    clip_point,
     drawing_bbox,
     reduce_points,
     scale_points,
@@ -20,18 +20,13 @@ from smartboard.core.hit_test import (
 )
 
 
-def test_clip_point_to_edge() -> None:
-    assert clip_point(-5, 2000) == (0.0, 1080.0)
-    assert clip_point(100, 100) == (100.0, 100.0)
-
-
 def test_drawing_bbox_derived_and_minimum() -> None:
-    assert drawing_bbox([[{"x": 100.0, "y": 100.0}, {"x": 300.0, "y": 200.0}]]) == (
-        100, 100, 200, 100)
-    x, y, w, h = drawing_bbox([[{"x": 5.0, "y": 5.0}]])
-    assert (w, h) == (24, 24) and x >= 0 and y >= 0
-    assert drawing_bbox([]) == (0, 0, 24, 24)
-    assert drawing_bbox([[{"nonsense": 1}]]) == (0, 0, 24, 24)
+    points = [[{"x": 100.0, "y": 100.0}, {"x": 300.0, "y": 200.0}]]
+    assert drawing_bbox(points, DEFAULT_DRAWING_WIDTH) == (98, 98, 204, 104)
+    x, y, w, h = drawing_bbox([[{"x": 5.0, "y": 5.0}]], DEFAULT_DRAWING_WIDTH)
+    assert (x, y, w, h) == (-7, -7, 24, 24)
+    assert drawing_bbox([], DEFAULT_DRAWING_WIDTH) == (0, 0, 24, 24)
+    assert drawing_bbox([[{"nonsense": 1}]], DEFAULT_DRAWING_WIDTH) == (0, 0, 24, 24)
 
 
 def test_translate_and_scale_points() -> None:
@@ -55,9 +50,23 @@ def test_point_segment_distance() -> None:
 def test_drawing_hit_dict_and_object_forms() -> None:
     from smartboard.core.board import Element
 
-    element = Element(id="drawing_001", type="drawing", x=0, y=0, width=400, height=300,
-                      extra={"strokes": [{"points": [{"x": 0.0, "y": 0.0}, {"x": 100.0, "y": 0.0}],
-                                         "width": 4, "color": "#FFFFFF"}]})
+    element = Element(
+        id="drawing_001",
+        type="drawing",
+        x=0,
+        y=0,
+        width=400,
+        height=300,
+        extra={
+            "strokes": [
+                {
+                    "points": [{"x": 0.0, "y": 0.0}, {"x": 100.0, "y": 0.0}],
+                    "width": 4,
+                    "color": "#FFFFFF",
+                }
+            ]
+        },
+    )
     assert drawing_hit(element, 50.0, 3.0) is True
     assert drawing_hit(element, 50.0, 50.0) is False
     as_dict = {"extra": {"strokes": [[{"x": 0.0, "y": 0.0}]]}}
@@ -71,9 +80,22 @@ def test_drawing_hit_dict_and_object_forms() -> None:
 def test_select_at_topmost_and_empty() -> None:
     elements = [
         {"id": "a", "type": "text", "x": 0, "y": 0, "width": 500, "height": 500, "z": 1},
-        {"id": "b", "type": "drawing", "x": 0, "y": 0, "width": 500, "height": 500,
-         "z": 2, "strokes": [{"points": [{"x": 10.0, "y": 10.0}, {"x": 20.0, "y": 10.0}],
-                              "width": 4, "color": "#FFFFFF"}]},
+        {
+            "id": "b",
+            "type": "drawing",
+            "x": 3,
+            "y": 0,
+            "width": 24,
+            "height": 24,
+            "z": 2,
+            "strokes": [
+                {
+                    "points": [{"x": 10.0, "y": 10.0}, {"x": 20.0, "y": 10.0}],
+                    "width": 4,
+                    "color": "#FFFFFF",
+                }
+            ],
+        },
     ]
     assert select_at(elements, 15.0, 10.0) == "b"
     assert select_at(elements, 400.0, 400.0) == "a"
@@ -97,8 +119,9 @@ def test_execute_hook_and_invalid_width_and_pressure() -> None:
     eng = _engine()
     calls: list = []
     eng.hook = calls.append
-    res = eng.execute({"command": "create_text", "target_id": None,
-                       "parameters": {"text": "hi"}, "timestamp": TS})
+    res = eng.execute(
+        {"command": "create_text", "target_id": None, "parameters": {"text": "hi"}, "timestamp": TS}
+    )
     assert res["ok"] and len(calls) == 1
     res = eng.add_drawing(ENGINE_STROKES, width=99)  # unknown width → default
     assert res["ok"]
@@ -108,21 +131,43 @@ def test_execute_hook_and_invalid_width_and_pressure() -> None:
 def test_drawing_move_resize_undo_redo_unit() -> None:
     eng = _engine()
     eng.add_drawing(ENGINE_STROKES)
-    eng.execute({"command": "move_item", "target_id": "drawing_001",
-                 "parameters": {"position": {"x": 0, "y": 0}}, "timestamp": TS})
+    created = eng.board.find("drawing_001")
+    assert created is not None
+    assert (created.x, created.y, created.width, created.height) == (98, 98, 204, 104)
+    eng.execute(
+        {
+            "command": "move_item",
+            "target_id": "drawing_001",
+            "parameters": {"position": {"x": 0, "y": 0}},
+            "timestamp": TS,
+        }
+    )
     assert eng.board.find("drawing_001").extra["strokes"][0]["points"][0] == {  # type: ignore[union-attr]
-        "x": 0.0, "y": 0.0}
+        "x": 2.0,
+        "y": 2.0,
+    }
     eng.execute({"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS})
     assert eng.board.find("drawing_001").extra["strokes"][0]["points"][0] == {  # type: ignore[union-attr]
-        "x": 100.0, "y": 100.0}
+        "x": 100.0,
+        "y": 100.0,
+    }
     eng.execute({"command": "redo", "target_id": None, "parameters": {}, "timestamp": TS})
     assert eng.board.find("drawing_001").extra["strokes"][0]["points"][0] == {  # type: ignore[union-attr]
-        "x": 0.0, "y": 0.0}
-    eng.execute({"command": "resize_item", "target_id": "drawing_001",
-                 "parameters": {"size": {"w": 100, "h": 100}}, "timestamp": TS})
+        "x": 2.0,
+        "y": 2.0,
+    }
+    eng.execute(
+        {
+            "command": "resize_item",
+            "target_id": "drawing_001",
+            "parameters": {"size": {"w": 100, "h": 100}},
+            "timestamp": TS,
+        }
+    )
     eng.execute({"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS})
     eng.execute({"command": "redo", "target_id": None, "parameters": {}, "timestamp": TS})
-    assert eng.board.find("drawing_001").width == 100  # type: ignore[union-attr]
+    assert eng.board.find("drawing_001").width == 103  # type: ignore[union-attr]
+    assert eng.board.find("drawing_001").height == 101  # type: ignore[union-attr]
 
 
 def test_legacy_list_strokes_and_delete_selection() -> None:
@@ -132,22 +177,32 @@ def test_legacy_list_strokes_and_delete_selection() -> None:
     assert target is not None
     target.extra["strokes"] = [[{"x": 10.0, "y": 10.0}]]  # legacy point-list shape
     assert len(eng._drawing_point_lists(target)) == 1
-    eng.execute({"command": "create_text", "target_id": None,
-                 "parameters": {"text": "other"}, "timestamp": TS})
+    eng.execute(
+        {
+            "command": "create_text",
+            "target_id": None,
+            "parameters": {"text": "other"},
+            "timestamp": TS,
+        }
+    )
     other = eng.board.selected_element_id
-    eng.execute({"command": "delete_item", "target_id": other,
-                 "parameters": {}, "timestamp": TS}, confirmed=True)
+    eng.execute(
+        {"command": "delete_item", "target_id": other, "parameters": {}, "timestamp": TS},
+        confirmed=True,
+    )
     assert eng.board.selected_element_id is None  # deleting selection clears it
     assert eng._confirm_prompt("new_lesson", None) == "Confirm this action? [Cancel] [Confirm]"
 
 
 def test_apply_forward_legacy_drawing_redo() -> None:
     eng = _engine()
-    eng._apply_forward({"command": "add_drawing", "parameters": {}},
-                       {"op": "remove", "id": "drawing_009"})
+    eng._apply_forward(
+        {"command": "add_drawing", "parameters": {}}, {"op": "remove", "id": "drawing_009"}
+    )
     assert eng.board.find("drawing_009") is not None
-    eng._apply_forward({"command": "x", "parameters": {}},
-                       {"op": "move", "id": "ghost", "x": 1, "y": 2})
+    eng._apply_forward(
+        {"command": "x", "parameters": {}}, {"op": "move", "id": "ghost", "x": 1, "y": 2}
+    )
     assert eng.board.find("ghost") is None
 
 
@@ -155,8 +210,8 @@ def test_reduce_points_drops_near_duplicates_keeps_endpoints() -> None:
     assert POINT_REDUCTION_DISTANCE == 2.0
     dense = [
         {"x": 0.0, "y": 0.0},
-        {"x": 0.5, "y": 0.0},   # too close to previous → dropped
-        {"x": 1.0, "y": 0.0},   # too close → dropped
+        {"x": 0.5, "y": 0.0},  # too close to previous → dropped
+        {"x": 1.0, "y": 0.0},  # too close → dropped
         {"x": 10.0, "y": 0.0},  # far enough → kept
         {"x": 10.5, "y": 0.0},  # last sample → always kept
     ]
@@ -172,8 +227,14 @@ def test_reduce_points_drops_near_duplicates_keeps_endpoints() -> None:
 
 def test_add_drawing_reduces_dense_samples_at_commit() -> None:
     eng = _engine()
-    dense = [[{"x": 10.0, "y": 10.0}, {"x": 10.4, "y": 10.0},
-              {"x": 10.8, "y": 10.0}, {"x": 200.0, "y": 100.0}]]
+    dense = [
+        [
+            {"x": 10.0, "y": 10.0},
+            {"x": 10.4, "y": 10.0},
+            {"x": 10.8, "y": 10.0},
+            {"x": 200.0, "y": 100.0},
+        ]
+    ]
     assert eng.add_drawing(dense)["ok"]
     kept = eng.board.find("drawing_001").extra["strokes"][0]["points"]  # type: ignore[union-attr]
     assert len(kept) == 2
@@ -182,12 +243,22 @@ def test_add_drawing_reduces_dense_samples_at_commit() -> None:
 
 def test_change_color_repaints_every_stroke() -> None:
     eng = _engine()
-    eng.add_drawing([[{"x": 10.0, "y": 10.0}, {"x": 90.0, "y": 90.0}],
-                     [{"x": 20.0, "y": 20.0}, {"x": 95.0, "y": 95.0}]],
-                    color="#FFFFFF")
+    eng.add_drawing(
+        [
+            [{"x": 10.0, "y": 10.0}, {"x": 90.0, "y": 90.0}],
+            [{"x": 20.0, "y": 20.0}, {"x": 95.0, "y": 95.0}],
+        ],
+        color="#FFFFFF",
+    )
     eng.select("drawing_001")
-    res = eng.execute({"command": "change_color", "target_id": None,
-                       "parameters": {"color": "red", "use_selection": True}, "timestamp": TS})
+    res = eng.execute(
+        {
+            "command": "change_color",
+            "target_id": None,
+            "parameters": {"color": "red", "use_selection": True},
+            "timestamp": TS,
+        }
+    )
     assert res["ok"]
     element = eng.board.find("drawing_001")
     assert element.color == "red"  # type: ignore[union-attr]

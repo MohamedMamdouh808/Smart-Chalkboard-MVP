@@ -16,28 +16,36 @@ TS = "2026-10-03T18:15:00Z"
 
 def build_state() -> dict:
     eng = CommandEngine()
-    eng.execute({"command": "create_heading", "target_id": None,
-                 "parameters": {"text": "Newton's Second Law"}, "timestamp": TS})
+    eng.execute(
+        {
+            "command": "create_heading",
+            "target_id": None,
+            "parameters": {"text": "Newton's Second Law"},
+            "timestamp": TS,
+        }
+    )
     return eng.board.to_dict()
 
 
 def test_snapshot_identical_across_sizes() -> None:
-    from smartboard.ui.viewport import Viewport
+    from smartboard.ui.camera_transform import CameraTransform
 
     state = build_state()
     for view_w, view_h in ((960, 540), (1280, 720), (1920, 1080)):
-        vp = Viewport.from_sizes(view_w, view_h)  # view-only; state untouched
-        assert vp.scale > 0
+        transform = CameraTransform(
+            pan_x=0.0, pan_y=0.0, zoom=1.0, view_w=view_w, view_h=view_h
+        )  # view-only
+        assert transform.visible_rect()[2:] == (float(view_w), float(view_h))
     assert json.dumps(build_state(), sort_keys=True) == json.dumps(state, sort_keys=True)
 
 
-def test_export_identical_across_sizes(tmp_path: Path) -> None:
+def test_export_identical_across_sizes(tmp_path: Path, qapp: object) -> None:
     from smartboard.app.exporter import export_png
 
     state = build_state()
     outs = []
-    # Export always renders the fixed canvas, never the window: window size
-    # is not even an input, so all three must be byte-identical.
+    # Export always renders content bounds at 100%, never the window: window
+    # size is not even an input, so all three must be byte-identical.
     for name in ("s", "m", "l"):
         out = export_png(state, tmp_path / f"{name}.png")
         outs.append(out.read_bytes())

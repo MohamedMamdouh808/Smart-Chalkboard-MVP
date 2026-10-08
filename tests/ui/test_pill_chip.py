@@ -6,8 +6,8 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui import theme  # noqa: E402
-from smartboard.ui.status_pill import STATES, StatusPill  # noqa: E402
+from smartboard.ui import theme
+from smartboard.ui.status_pill import STATES, StatusPill
 
 
 def test_states_complete() -> None:
@@ -43,8 +43,8 @@ def test_unknown_state_rejected(qapp: object) -> None:
 
 # -- T015: transcription strip + result chip ---------------------------------
 
-from smartboard.ui.main_window import MainWindow  # noqa: E402
-from smartboard.ui.result_chip import (  # noqa: E402
+from smartboard.ui.main_window import MainWindow
+from smartboard.ui.result_chip import (
     OUTCOMES,
     PLACEHOLDER,
     ResultChip,

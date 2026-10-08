@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 
-class BoardContext(dict):  # transcript + element summaries + selection + schemas
+class BoardContext(dict[str, Any]):  # transcript + element summaries + selection + schemas
     pass
 
 

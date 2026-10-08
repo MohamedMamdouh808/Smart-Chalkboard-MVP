@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 TS = "2026-10-03T18:15:00Z"
+VOICE_LOG = logging.getLogger("smartboard.voice")
 
 
 def _save_state(window: Any) -> None:
@@ -14,18 +16,21 @@ def _save_state(window: Any) -> None:
     save_state(window)
 
 
-def _refresh(orchestrator: Any, window_holder: dict[str, Any],
-             highlight_id: str | None = None) -> None:
+def _refresh(
+    orchestrator: Any, window_holder: dict[str, Any], highlight_id: str | None = None
+) -> None:
     window = window_holder["window"]
-    window.render_board(orchestrator.engine.board.to_dict(), highlight_id)
+    window.render_board(orchestrator.engine.board.to_dict(), highlight_id, orchestrator.camera)
+    window.set_zoom_label(orchestrator.camera.zoom)
     window.set_status(orchestrator.status)
     window.show_transcription(orchestrator.transcription)
     window.undo_button.setEnabled(orchestrator.engine.history.can_undo())
     window.redo_button.setEnabled(orchestrator.engine.history.can_redo())
 
 
-def _deliver_result(future: Any, transcript: str, started: float,
-                    orchestrator: Any, window_holder: dict[str, Any]) -> None:
+def _deliver_result(
+    future: Any, transcript: str, started: float, orchestrator: Any, window_holder: dict[str, Any]
+) -> None:
     import time as _time
 
     from PyQt6.QtCore import QTimer as _QTimer
@@ -41,14 +46,17 @@ def _deliver_result(future: Any, transcript: str, started: float,
             window.dev_input.setEnabled(True)
             return
         _QTimer.singleShot(
-            100, lambda: _deliver_result(future, transcript, started, orchestrator, window_holder))
+            100, lambda: _deliver_result(future, transcript, started, orchestrator, window_holder)
+        )
         return
     try:
         result = future.result()
-    except Exception:
-        result = {"ok": False,
-                  "message": "Voice service unavailable. Check your connection and retry.",
-                  "retry": True}
+    except Exception:  # noqa: BLE001 - worker faults degrade to manual mode
+        result = {
+            "ok": False,
+            "message": "Voice service unavailable. Check your connection and retry.",
+            "retry": True,
+        }
     if result.get("needs_confirmation"):
         window.set_status("Validating")
         dialog = ConfirmDialog(result.get("message", "Confirm?"), window)
@@ -70,8 +78,17 @@ def _deliver_result(future: Any, transcript: str, started: float,
         window.show_transcription(f"{transcript}  →  {result['message']}")
 
 
-def submit_dev_transcript(orchestrator: Any, window_holder: dict[str, Any],
-                          transcript: str) -> None:
+def handle_voice_transcript(
+    orchestrator: Any, window_holder: dict[str, Any], grouper: Any, transcript: str
+) -> None:
+    """Submit a finished voice transcript through the developer-text path."""
+    grouper.mark_interaction()
+    submit_dev_transcript(orchestrator, window_holder, transcript)
+
+
+def submit_dev_transcript(
+    orchestrator: Any, window_holder: dict[str, Any], transcript: str
+) -> None:
     import time as _time
 
     from smartboard.ai.config import get_provider, load_config
@@ -104,7 +121,9 @@ def main() -> None:
 
     app = QApplication([])
     from smartboard.ui.theme import build_stylesheet
+    from smartboard.ui.tooltip_style import TooltipStyle
 
+    app.setStyle(TooltipStyle())
     app.setStyleSheet(build_stylesheet())
     orchestrator = build_app()
     window_holder: dict[str, Any] = {}
@@ -112,6 +131,7 @@ def main() -> None:
 
     grouper = StrokeGrouper()
     pending: list[list[list[dict[str, Any]]]] = []
+    pending_manual: list[dict[str, Any]] = []
 
     def _pen_width() -> int:
         from smartboard.ui.window_state import load_pen_width
@@ -121,18 +141,90 @@ def main() -> None:
     def refresh(highlight_id: str | None = None) -> None:
         _refresh(orchestrator, window_holder, highlight_id)
 
-    def on_mic() -> None:
-        # Speech capture lands in the next feature; until then the mic is
-        # inert and says so honestly. Typed transcripts go via dev input.
+    from smartboard.voice.recorder import (
+        MicrophoneDeniedError,
+        MicrophoneUnavailableError,
+        SoundRecorder,
+    )
+    from smartboard.voice.voice_config import load_voice_config
+    from smartboard.voice.voice_worker import VoiceWorker
+
+    def _record_voice_metric(event: dict[str, Any]) -> None:
+        VOICE_LOG.info(
+            "voice_transcription duration_ms=%s model=%s device=%s outcome=%s",
+            event.get("duration_ms"),
+            event.get("model"),
+            event.get("device"),
+            event.get("outcome"),
+        )
+
+    voice_recorder = SoundRecorder()
+    voice_worker = VoiceWorker(load_voice_config(), telemetry=_record_voice_metric)
+    voice_ready = False
+
+    def on_mic_press() -> None:
+        window = window_holder["window"]
+        if not voice_ready:
+            window.show_transcription("Voice model is still loading. Please wait a moment.")
+            return
+        window.set_status("Listening")
+        try:
+            voice_recorder.start()
+        except MicrophoneUnavailableError:
+            window.set_status("Idle")
+            window.show_transcription(
+                "No microphone was found. Board, pen and developer input still work."
+            )
+        except MicrophoneDeniedError:
+            window.set_status("Idle")
+            window.show_transcription(
+                "Microphone access was denied. Board, pen and developer input still work."
+            )
+
+    def on_mic_release() -> None:
+        window = window_holder["window"]
+        try:
+            recording = voice_recorder.stop()
+        except MicrophoneUnavailableError:
+            window.set_status("Idle")
+            window.show_transcription(
+                "No microphone was found. Board, pen and developer input still work."
+            )
+            return
+        except MicrophoneDeniedError:
+            window.set_status("Idle")
+            window.show_transcription(
+                "Microphone access was denied. Board, pen and developer input still work."
+            )
+            return
+        if recording is None:
+            window.set_status("Idle")
+            return
+        window.set_status("Processing")
+        voice_worker.transcribeRequested.emit(recording.samples)
+
+    def on_voice_ready() -> None:
+        nonlocal voice_ready
+        voice_ready = True
+        window_holder["window"].mic_button.set_loading(False)
+        window_holder["window"].set_status("Idle")
+
+    def on_voice_transcript(text: str, duration_ms: float) -> None:
+        del duration_ms  # duration is already reported through telemetry.
+        window_holder["window"].show_transcription(text)
+        handle_voice_transcript(orchestrator, window_holder, grouper, text)
+
+    def on_voice_failed(message: str) -> None:
         window = window_holder["window"]
         window.set_status("Idle")
-        window.show_transcription(
-            "Speech capture is coming soon — enable the developer input to type commands.")
+        window.show_transcription(message)
+        window.show_result({"ok": False})
 
     def on_undo() -> None:
         grouper.mark_interaction()  # commands break stroke grouping
         result = orchestrator.engine.execute(
-            {"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS}, source="ui")
+            {"command": "undo", "target_id": None, "parameters": {}, "timestamp": TS}, source="ui"
+        )
         refresh()
         if not result.get("ok"):
             window_holder["window"].show_transcription(result["message"])
@@ -140,7 +232,8 @@ def main() -> None:
     def on_redo() -> None:
         grouper.mark_interaction()  # commands break stroke grouping
         result = orchestrator.engine.execute(
-            {"command": "redo", "target_id": None, "parameters": {}, "timestamp": TS}, source="ui")
+            {"command": "redo", "target_id": None, "parameters": {}, "timestamp": TS}, source="ui"
+        )
         refresh()
         if not result.get("ok"):
             window_holder["window"].show_transcription(result["message"])
@@ -203,12 +296,215 @@ def main() -> None:
         orchestrator.engine.select(element_id)  # engine stays the only writer
         refresh()
 
-    window = MainWindow(on_mic=on_mic, on_undo=on_undo, on_redo=on_redo,
-                        on_close=lambda: _save_state(window),
-                        on_dev_text=on_dev_text)
+    def _arm_manual_retry() -> None:
+        from PyQt6.QtCore import QTimer as _QTimer
+
+        _QTimer.singleShot(100, _retry_manual_gestures)
+
+    def _retry_manual_gestures() -> None:
+        while pending_manual:
+            payload = pending_manual.pop(0)
+            result = orchestrator.commit_manual_gesture(payload)
+            if result.get("error_code") in ("E_BUSY", "E_QUEUE_FULL"):
+                pending_manual.insert(0, payload)
+                break
+            refresh(result.get("affected_id"))
+            if not result.get("ok"):
+                window_holder["window"].show_transcription(
+                    str(result.get("message", "That gesture could not be applied."))
+                )
+        if pending_manual:
+            _arm_manual_retry()
+
+    def on_gesture_finished(payload: dict[str, Any]) -> None:
+        grouper.mark_interaction()  # gestures break stroke grouping
+        result = orchestrator.commit_manual_gesture(payload)
+        if result.get("error_code") in ("E_BUSY", "E_QUEUE_FULL"):
+            # The queue was busy or full, so nothing was submitted yet. Hold
+            # the unsigned payload and retry without duplicating the gesture.
+            pending_manual.append(payload)
+            window_holder["window"].show_transcription(
+                "Another command is running. The gesture is waiting."
+            )
+            _arm_manual_retry()
+            return
+        refresh(result.get("affected_id"))
+        if not result.get("ok"):
+            window_holder["window"].show_transcription(
+                str(result.get("message", "That gesture could not be applied."))
+            )
+
+    def on_view_size(view_w: int, view_h: int) -> None:
+        orchestrator.set_view_size(view_w, view_h)
+
+    def on_camera_changed(camera: Any) -> None:
+        orchestrator.set_camera(camera)
+        refresh()
+        session = text_overlay.session
+        if session is not None:
+            if session.get("target_id") is None:
+                anchor = {
+                    "world_x": session.get("world_x", 0.0),
+                    "world_y": session.get("world_y", 0.0),
+                    "target_id": None,
+                }
+            else:
+                anchor = {"target_id": session.get("target_id")}
+            text_overlay.follow_camera(_overlay_rect(anchor))
+
+    def on_zoom_in() -> None:
+        view = window_holder["window"].board_view
+        orchestrator.zoom_about(view.width() / 2, view.height() / 2, 1.25)
+        refresh()
+
+    def on_zoom_out() -> None:
+        view = window_holder["window"].board_view
+        orchestrator.zoom_about(view.width() / 2, view.height() / 2, 1 / 1.25)
+        refresh()
+
+    def on_zoom_reset() -> None:
+        orchestrator.reset_zoom()
+        refresh()
+
+    def on_zoom_fit() -> None:
+        orchestrator.fit_all()
+        refresh()
+
+    def on_close() -> None:
+        voice_thread.quit()
+        voice_thread.wait(5000)
+        _save_state(window_holder["window"])
+
+    window = MainWindow(
+        on_mic_press=on_mic_press,
+        on_mic_release=on_mic_release,
+        on_undo=on_undo,
+        on_redo=on_redo,
+        on_close=on_close,
+        on_dev_text=on_dev_text,
+        on_zoom_in=on_zoom_in,
+        on_zoom_out=on_zoom_out,
+        on_zoom_reset=on_zoom_reset,
+        on_zoom_fit=on_zoom_fit,
+    )
     window_holder["window"] = window
     window.board_view.StrokeFinished.connect(on_stroke_finished)
     window.board_view.SelectionChanged.connect(on_selection_changed)
+    window.board_view.GestureFinished.connect(on_gesture_finished)
+    window.board_view.CameraChanged.connect(on_camera_changed)
+    window.board_view.ViewSizeChanged.connect(on_view_size)
+
+    from smartboard.ui.text_overlay import TextOverlay
+
+    text_overlay = TextOverlay(window.board_view)
+
+    def _overlay_font(kind: str, equation: bool, zoom: float) -> Any:
+        from smartboard.app.text_fit import font_for as _font_for
+
+        font = _font_for(kind if kind != "equation" else "text", equation)
+        try:
+            font.setPointSize(max(1, round(font.pointSize() * zoom)))
+        except (AttributeError, TypeError, ValueError):
+            pass
+        return font
+
+    def _element_text(element: Any) -> str:
+        if not isinstance(element, dict):
+            return ""
+        text = element.get("text", "")
+        if not text and isinstance(element.get("extra"), dict):
+            text = element["extra"].get("text", "")
+        return str(text)
+
+    def _overlay_rect(payload: dict[str, Any]) -> Any:
+        from PyQt6.QtCore import QRect as _QRect
+
+        view = window_holder["window"].board_view
+        target_id = payload.get("target_id")
+        if target_id is not None:
+            return view.element_screen_rect(target_id)
+        sx, sy = view.transform().to_screen(float(payload["world_x"]), float(payload["world_y"]))
+        zoom = view.camera_state().zoom
+        return _QRect(int(sx), int(sy), max(int(600 * zoom), 1), max(int(120 * zoom), 1))
+
+    def on_inline_edit_requested(payload: dict[str, Any]) -> None:
+        grouper.mark_interaction()
+        view = window_holder["window"].board_view
+        target_id = payload.get("target_id")
+        zoom = view.camera_state().zoom
+        if target_id is None:
+            text_overlay.begin_new(
+                float(payload["world_x"]),
+                float(payload["world_y"]),
+                _overlay_rect(payload),
+                _overlay_font("text", False, zoom),
+            )
+            return
+        element = next(
+            (el for el in view._state.get("elements", []) if el.get("id") == target_id), None
+        )
+        if element is None or element.get("type") not in ("heading", "text"):
+            return
+        equation = bool(element.get("equation_style"))
+        if not equation and isinstance(element.get("extra"), dict):
+            equation = bool(element["extra"].get("equation_style"))
+        kind = "heading" if element.get("type") == "heading" else "text"
+        text_overlay.begin_existing(
+            target_id,
+            kind,
+            _element_text(element),
+            _overlay_rect(payload),
+            _overlay_font(kind, equation, zoom),
+        )
+
+    def on_text_committed(payload: dict[str, Any]) -> None:
+        grouper.mark_interaction()
+        if payload.get("target_id") is None:
+            result = orchestrator.commit_text_create(
+                float(payload["world_x"]), float(payload["world_y"]), str(payload.get("text", ""))
+            )
+        else:
+            result = orchestrator.commit_text_edit(
+                payload.get("target_id"), str(payload.get("text", ""))
+            )
+        refresh(result.get("affected_id"))
+        if not result.get("ok"):
+            window_holder["window"].show_transcription(
+                str(result.get("message", "That text could not be applied."))
+            )
+
+    def on_text_discarded(payload: dict[str, Any]) -> None:
+        del payload
+        grouper.mark_interaction()
+        refresh()
+
+    def on_focus_changed(old: Any, new: Any) -> None:
+        del old
+        if not text_overlay.is_open:
+            return
+        editor = text_overlay.editor_widget
+        widget = new
+        while widget is not None:
+            if widget is editor:
+                return
+            widget = widget.parentWidget() if hasattr(widget, "parentWidget") else None
+        text_overlay.focus_out_commit()
+
+    window.board_view.InlineEditRequested.connect(on_inline_edit_requested)
+    text_overlay.Committed.connect(on_text_committed)
+    text_overlay.Discarded.connect(on_text_discarded)
+    app.focusChanged.connect(on_focus_changed)
+    window.mic_button.set_loading(True)
+
+    from PyQt6.QtCore import QThread as _QThread
+
+    voice_thread = _QThread()
+    voice_worker.moveToThread(voice_thread)
+    voice_thread.started.connect(voice_worker.load_model)
+    voice_worker.modelReady.connect(on_voice_ready)
+    voice_worker.transcriptReady.connect(on_voice_transcript)
+    voice_worker.failed.connect(on_voice_failed)
+    voice_thread.start()
 
     def on_pen_mode(mode: str) -> None:
         grouper.mark_interaction()

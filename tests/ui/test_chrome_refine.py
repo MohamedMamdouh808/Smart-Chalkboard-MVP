@@ -6,9 +6,8 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui import theme  # noqa: E402
-from smartboard.ui.main_window import MainWindow  # noqa: E402
-from smartboard.ui.viewport import CANVAS_H, CANVAS_W  # noqa: E402
+from smartboard.ui import theme
+from smartboard.ui.main_window import MainWindow
 
 SIZES = [(960, 540), (1366, 768), (1920, 1080)]
 
@@ -27,10 +26,11 @@ def _frame(window: MainWindow, widget) -> tuple:
 
 
 @pytest.mark.parametrize(("view_w", "view_h"), SIZES)
-def test_input_fills_gap_both_sides(monkeypatch: pytest.MonkeyPatch, qapp: object,
-                                    view_w: int, view_h: int) -> None:
+def test_input_fills_gap_both_sides(
+    monkeypatch: pytest.MonkeyPatch, qapp: object, view_w: int, view_h: int
+) -> None:
     window = _window(monkeypatch, view_w, view_h)
-    _, _, redo_w, _ = _frame(window, window.redo_button)
+    _, _, _redo_w, _ = _frame(window, window.redo_button)
     anchor_right = _frame(window, window.pen_button)[0] + _frame(window, window.pen_button)[2]
     dev = _frame(window, window.dev_input)
     pill = _frame(window, window.status_pill)
@@ -49,19 +49,14 @@ def test_input_text_contrast() -> None:
 
 
 @pytest.mark.parametrize(("view_w", "view_h"), SIZES)
-def test_board_width_rule(monkeypatch: pytest.MonkeyPatch, qapp: object,
-                          view_w: int, view_h: int) -> None:
+def test_board_width_rule(
+    monkeypatch: pytest.MonkeyPatch, qapp: object, view_w: int, view_h: int
+) -> None:
     window = _window(monkeypatch, view_w, view_h)
     board_w = window.board_view.width()
-    # Aspect rule: width binds iff view is wider (relative) than the canvas.
-    width_binds = (view_w / view_h) >= (CANVAS_W / CANVAS_H)
-    if width_binds:
-        assert view_w - board_w <= 2 * theme.BOARD_MARGIN
-    else:
-        # Height binds: canvas centered with symmetric pillar margins.
-        scale = window.board_view.viewport().scale
-        leftover = view_w - CANVAS_W * scale
-        assert leftover >= 0
-        vp_ox = window.board_view.viewport().ox
-        assert abs(vp_ox - leftover / 2) <= 1.0
+    # Infinite layout: the board fills the layout area regardless of aspect.
+    assert view_w - board_w <= 2 * theme.BOARD_MARGIN
+    # Camera transform is exact and invertible at any window size.
+    transform = window.board_view.transform()
+    assert transform.to_world(*transform.to_screen(100, 100)) == (100, 100)
     window.close()

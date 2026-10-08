@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -52,7 +52,9 @@ CURRENT_VERSION = 1
 
 
 def migrate(conn: sqlite3.Connection) -> int:
-    cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'")
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
+    )
     if cur.fetchone() is None:
         conn.executescript(SCHEMA_V1)
     cur = conn.execute("SELECT COALESCE(MAX(version), 0) FROM schema_migrations")
@@ -61,7 +63,7 @@ def migrate(conn: sqlite3.Connection) -> int:
         conn.executescript(SCHEMA_V1)
         conn.execute(
             "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (CURRENT_VERSION, datetime.now(timezone.utc).isoformat()),
+            (CURRENT_VERSION, datetime.now(UTC).isoformat()),
         )
         conn.commit()
         return CURRENT_VERSION

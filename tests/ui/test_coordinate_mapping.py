@@ -1,69 +1,81 @@
-"""T005: pen/mouse mapping — taps select exactly the intended element at any size."""
+"""World-space tap mapping — taps select exactly the intended element at any zoom."""
 
 from __future__ import annotations
 
 import pytest
 
-from smartboard.ui.viewport import Viewport, hit_test
+from smartboard.core.hit_test import select_at
+from smartboard.ui.camera_transform import CameraTransform
 
 STATE = {
     "elements": [
-        {"id": "heading_001", "type": "heading", "x": 160, "y": 80, "width": 800, "height": 96,
-         "z": 1},
-        {"id": "text_001", "type": "text", "x": 160, "y": 200, "width": 320, "height": 80,
-         "z": 2},
+        {
+            "id": "heading_001",
+            "type": "heading",
+            "x": 160,
+            "y": 80,
+            "width": 800,
+            "height": 96,
+            "z": 1,
+        },
+        {"id": "text_001", "type": "text", "x": 160, "y": 200, "width": 320, "height": 80, "z": 2},
     ]
 }
 
-SIZES = [(960, 540), (1280, 720), (1920, 1080), (800, 1000)]
+CAMERAS = [
+    CameraTransform(pan_x=0.0, pan_y=0.0, zoom=1.0, view_w=960, view_h=540),
+    CameraTransform(pan_x=500.0, pan_y=300.0, zoom=2.0, view_w=1280, view_h=720),
+    CameraTransform(pan_x=-2000.0, pan_y=-1000.0, zoom=0.10, view_w=1920, view_h=1080),
+]
 
 
-@pytest.mark.parametrize(("view_w", "view_h"), SIZES)
-def test_tap_hits_intended_element(view_w: int, view_h: int) -> None:
-    vp = Viewport.from_sizes(view_w, view_h)
-    sx, sy = vp.to_screen(200, 100)  # inside heading_001
-    assert hit_test(STATE, *vp.to_canvas(sx, sy)) == "heading_001"
-    sx, sy = vp.to_screen(200, 240)  # inside text_001
-    assert hit_test(STATE, *vp.to_canvas(sx, sy)) == "text_001"
+@pytest.mark.parametrize("transform", CAMERAS)
+def test_tap_hits_intended_element(transform: CameraTransform) -> None:
+    sx, sy = transform.to_screen(200, 100)  # inside heading_001
+    wx, wy = transform.to_world(sx, sy)
+    assert select_at(STATE["elements"], wx, wy) == "heading_001"
+    sx, sy = transform.to_screen(200, 240)  # inside text_001
+    wx, wy = transform.to_world(sx, sy)
+    assert select_at(STATE["elements"], wx, wy) == "text_001"
 
 
-@pytest.mark.parametrize(("view_w", "view_h"), SIZES)
-def test_tap_on_empty_space_selects_nothing(view_w: int, view_h: int) -> None:
-    vp = Viewport.from_sizes(view_w, view_h)
-    sx, sy = vp.to_screen(1500, 900)  # empty canvas area
-    assert hit_test(STATE, *vp.to_canvas(sx, sy)) is None
+@pytest.mark.parametrize("transform", CAMERAS)
+def test_tap_on_empty_space_selects_nothing(transform: CameraTransform) -> None:
+    sx, sy = transform.to_screen(5000, 5000)  # empty world area
+    wx, wy = transform.to_world(sx, sy)
+    assert select_at(STATE["elements"], wx, wy) is None
 
 
 def test_topmost_wins_on_overlap() -> None:
-    state = {"elements": [
-        {"id": "a", "x": 0, "y": 0, "width": 500, "height": 500, "z": 1},
-        {"id": "b", "x": 100, "y": 100, "width": 200, "height": 200, "z": 2},
-    ]}
-    assert hit_test(state, 150, 150) == "b"
-    assert hit_test(state, 10, 10) == "a"
+    state = {
+        "elements": [
+            {"id": "a", "type": "text", "x": 0, "y": 0, "width": 500, "height": 500, "z": 1},
+            {"id": "b", "type": "text", "x": 100, "y": 100, "width": 200, "height": 200, "z": 2},
+        ]
+    }
+    assert select_at(state["elements"], 150, 150) == "b"
+    assert select_at(state["elements"], 10, 10) == "a"
 
 
 def test_hundred_taps_all_correct() -> None:
-    """SC-003 style: 100 taps across three sizes, 100% accuracy."""
+    """100 taps across cameras, 100% accuracy."""
     taps = 0
-    for view_w, view_h in ((960, 540), (1280, 720), (1920, 1080)):
-        vp = Viewport.from_sizes(view_w, view_h)
+    for transform in CAMERAS:
         for i in range(34):
-            cx, cy = 160 + (i * 37) % 800, 80 + (i * 13) % 96  # inside heading
-            sx, sy = vp.to_screen(cx, cy)
-            assert hit_test(STATE, *vp.to_canvas(sx, sy)) == "heading_001"
+            wx, wy = 160 + (i * 37) % 800, 80 + (i * 13) % 96  # inside heading
+            sx, sy = transform.to_screen(wx, wy)
+            assert select_at(STATE["elements"], *transform.to_world(sx, sy)) == "heading_001"
             taps += 1
     assert taps >= 100
 
 
-def test_mid_stroke_viewport_swap_keeps_shape() -> None:
-    """Samples taken under different viewports still describe the same stroke."""
-    small = Viewport.from_sizes(960, 540)
-    big = Viewport.from_sizes(1920, 1080)
-    # Teacher draws a horizontal line across canvas y=500; resize happens mid-stroke.
-    canvas_points = [(x, 500.0) for x in (100, 300, 500, 700, 900)]
-    screen_first = [small.to_screen(x, y) for x, y in canvas_points[:2]]
-    screen_rest = [big.to_screen(x, y) for x, y in canvas_points[2:]]
-    back = [small.to_canvas(*p) for p in screen_first] + [big.to_canvas(*p) for p in screen_rest]
-    for (bx, by), (cx, cy) in zip(back, canvas_points):
-        assert abs(bx - cx) < 0.5 and abs(by - cy) < 0.5
+def test_mid_stroke_camera_move_keeps_shape() -> None:
+    """Samples taken under different cameras still describe the same stroke."""
+    first = CameraTransform(pan_x=0.0, pan_y=0.0, zoom=1.0, view_w=960, view_h=540)
+    second = CameraTransform(pan_x=400.0, pan_y=200.0, zoom=2.0, view_w=960, view_h=540)
+    world_points = [(x, 500.0) for x in (100, 300, 500, 700, 900)]
+    screen_first = [first.to_screen(x, y) for x, y in world_points[:2]]
+    screen_rest = [second.to_screen(x, y) for x, y in world_points[2:]]
+    back = [first.to_world(*p) for p in screen_first] + [second.to_world(*p) for p in screen_rest]
+    for (bx, by), (cx, cy) in zip(back, world_points):
+        assert abs(bx - cx) < 1e-6 and abs(by - cy) < 1e-6

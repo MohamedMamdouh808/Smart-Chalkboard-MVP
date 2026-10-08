@@ -5,11 +5,12 @@ Emits intents through injected callbacks; never mutates board state itself.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .board_view import BACKGROUND
 from .status import STATUS_STATES
-from .theme import FONT_HEARD_LABEL, FONT_TRANSCRIPT, TEXT_MUTED
+from .theme import TEXT_MUTED
 
 try:
     from PyQt6.QtCore import Qt
@@ -32,7 +33,7 @@ MIN_WINDOW_H = 540
 MIN_TARGET_PX = 48
 
 
-class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,misc]
+class MainWindow(QMainWindow if _QT else object):  # type: ignore[misc]
     """Fullscreen shell: board view + mic button + status + transcription."""
 
     MIC_MIN_SIZE = 96
@@ -40,10 +41,16 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
     def __init__(
         self,
         on_mic: Callable[[], None] | None = None,
+        on_mic_press: Callable[[], None] | None = None,
+        on_mic_release: Callable[[], None] | None = None,
         on_undo: Callable[[], None] | None = None,
         on_redo: Callable[[], None] | None = None,
         on_close: Callable[[], None] | None = None,
         on_dev_text: Callable[[str], None] | None = None,
+        on_zoom_in: Callable[[], None] | None = None,
+        on_zoom_out: Callable[[], None] | None = None,
+        on_zoom_reset: Callable[[], None] | None = None,
+        on_zoom_fit: Callable[[], None] | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -60,26 +67,25 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
         self._f11 = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
         self._f11.activated.connect(self.toggle_mode)
 
+        from PyQt6.QtGui import QFont as _QFont
+
         from .board_view import BoardView
         from .icons import load_icon
         from .mic_button import MicButton
         from .result_chip import PLACEHOLDER, ResultChip
         from .status_pill import StatusPill
         from .theme import (
-            BUTTON_STYLESHEET,
             BAR_PAD_V,
             BOARD_MARGIN,
+            BUTTON_STYLESHEET,
             CHIP_H,
             COMPACT_CONTROL_H,
-            FOCUS_RING,
             FONT_BUTTON,
-            FONT_FAMILY,
             FONT_STRIP,
             STRIP_BG,
             STRIP_H,
             TEXT,
         )
-        from PyQt6.QtGui import QFont as _QFont
 
         root = QWidget()
         root.setObjectName("root")
@@ -94,8 +100,7 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
         strip_layout.setContentsMargins(BOARD_MARGIN, BAR_PAD_V, BOARD_MARGIN, BAR_PAD_V)
         self.heard_label = QLabel("Heard:")
         self.heard_label.setFont(_QFont("Segoe UI", FONT_STRIP))
-        self.heard_label.setStyleSheet(
-            f"color: {TEXT_MUTED};")
+        self.heard_label.setStyleSheet(f"color: {TEXT_MUTED};")
         self.transcription_label = QLabel(PLACEHOLDER)
         self.transcription_label.setFont(_QFont("Segoe UI", FONT_STRIP))
         self.transcription_label.setStyleSheet(f"padding: 4px 8px; color: {TEXT};")
@@ -130,6 +135,10 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
         self.mic_button.setToolTip("Speak a command (scripted demo) — click for the next utterance")
         if on_mic is not None:
             self.mic_button.clicked.connect(on_mic)
+        if on_mic_press is not None:
+            self.mic_button.recordingStarted.connect(on_mic_press)
+        if on_mic_release is not None:
+            self.mic_button.recordingStopped.connect(on_mic_release)
         bar.addWidget(self.mic_button)
 
         self.undo_button = QPushButton("Undo")
@@ -145,6 +154,51 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
             self.redo_button.clicked.connect(on_redo)
         bar.addWidget(self.undo_button)
         bar.addWidget(self.redo_button)
+
+        self.zoom_out_button = QPushButton("\u2212")
+        self.zoom_out_button.setToolTip("Zoom out (Ctrl+-)")
+        self.zoom_in_button = QPushButton("+")
+        self.zoom_in_button.setToolTip("Zoom in (Ctrl++)")
+        self.zoom_reset_button = QPushButton("100%")
+        self.zoom_reset_button.setToolTip("Reset zoom to 100% (Ctrl+0)")
+        self.zoom_fit_button = QPushButton("Fit")
+        self.zoom_fit_button.setToolTip("Fit all content (Shift+1)")
+        for btn in (
+            self.zoom_out_button,
+            self.zoom_in_button,
+            self.zoom_reset_button,
+            self.zoom_fit_button,
+        ):
+            btn.setMinimumHeight(COMPACT_CONTROL_H)
+            btn.setStyleSheet(BUTTON_STYLESHEET)
+        if on_zoom_out is not None:
+            self.zoom_out_button.clicked.connect(on_zoom_out)
+        if on_zoom_in is not None:
+            self.zoom_in_button.clicked.connect(on_zoom_in)
+        if on_zoom_reset is not None:
+            self.zoom_reset_button.clicked.connect(on_zoom_reset)
+        if on_zoom_fit is not None:
+            self.zoom_fit_button.clicked.connect(on_zoom_fit)
+        bar.addWidget(self.zoom_out_button)
+        bar.addWidget(self.zoom_in_button)
+        bar.addWidget(self.zoom_reset_button)
+        bar.addWidget(self.zoom_fit_button)
+
+        self.zoom_label = QLabel("100%")
+        self.zoom_label.setToolTip("Current board zoom")
+        self.zoom_label.setFont(_QFont("Segoe UI", FONT_BUTTON))
+        bar.addWidget(self.zoom_label)
+
+        self._shortcut_zoom_in = QShortcut(QKeySequence("Ctrl++"), self)
+        self._shortcut_zoom_in.activated.connect(lambda: on_zoom_in() if on_zoom_in else None)
+        self._shortcut_zoom_out = QShortcut(QKeySequence("Ctrl+-"), self)
+        self._shortcut_zoom_out.activated.connect(lambda: on_zoom_out() if on_zoom_out else None)
+        self._shortcut_zoom_reset = QShortcut(QKeySequence("Ctrl+0"), self)
+        self._shortcut_zoom_reset.activated.connect(
+            lambda: on_zoom_reset() if on_zoom_reset else None
+        )
+        self._shortcut_zoom_fit = QShortcut(QKeySequence("Shift+1"), self)
+        self._shortcut_zoom_fit.activated.connect(lambda: on_zoom_fit() if on_zoom_fit else None)
 
         self.pen_button = QPushButton("Select")
         self.pen_button.setCheckable(True)
@@ -178,7 +232,8 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
         self.dev_input.setPalette(palette)
         if on_dev_text is not None:
             self.dev_input.returnPressed.connect(
-                lambda: (on_dev_text(self.dev_input.text()), self.dev_input.clear()))
+                lambda: (on_dev_text(self.dev_input.text()), self.dev_input.clear())  # type: ignore[func-returns-value]
+            )
         bar.addWidget(self.dev_input, stretch=1)
         if not dev_shown:
             # Flag off: the hidden input takes no space, so a spacer keeps
@@ -220,15 +275,14 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
         return self._transcription
 
     def show_transcription(self, text: str) -> None:
-        from .result_chip import PLACEHOLDER as _PLACEHOLDER
 
         self._transcription = text
         self._apply_elision()
 
     def _apply_elision(self) -> None:
-        from .result_chip import PLACEHOLDER as _PLACEHOLDER
-
         from PyQt6.QtGui import QFontMetrics as _QFontMetrics
+
+        from .result_chip import PLACEHOLDER as _PLACEHOLDER
 
         full = self._transcription if self._transcription else _PLACEHOLDER
         self.transcription_label.setToolTip(self._transcription)
@@ -254,8 +308,13 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
 
         self.result_chip.set_outcome(_outcome_for(result))
 
-    def render_board(self, state: dict[str, Any], highlight_id: str | None = None) -> None:
-        self.board_view.render_state(state, highlight_id)
+    def render_board(
+        self, state: dict[str, Any], highlight_id: str | None = None, camera: Any | None = None
+    ) -> None:
+        self.board_view.render_state(state, highlight_id, camera)
+
+    def set_zoom_label(self, zoom: float) -> None:
+        self.zoom_label.setText(f"{round(float(zoom) * 100)}%")
 
     # -- window mode ------------------------------------------------------
     def toggle_mode(self) -> None:
@@ -288,27 +347,27 @@ class MainWindow(QMainWindow if _QT else object):  # type: ignore[valid-type,mis
         geo.moveCenter(center)
         dialog.setGeometry(geo)
 
-    def moveEvent(self, event: Any) -> None:  # noqa: N802 (Qt naming)
+    def moveEvent(self, event: Any) -> None:
         super().moveEvent(event)
         for dialog in list(self._open_dialogs):
             self.recenter_dialog(dialog)
 
-    def resizeEvent(self, event: Any) -> None:  # noqa: N802 (Qt naming)
+    def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
         self._apply_elision()
         for dialog in list(self._open_dialogs):
             self.recenter_dialog(dialog)
 
-    def showEvent(self, event: Any) -> None:  # noqa: N802 (Qt naming)
+    def showEvent(self, event: Any) -> None:
         super().showEvent(event)
         self._apply_elision()
 
-    def closeEvent(self, event: Any) -> None:  # noqa: N802 (Qt naming)
+    def closeEvent(self, event: Any) -> None:
         if self._on_close is not None:
             self._on_close()
         super().closeEvent(event)
 
-    def keyPressEvent(self, event: Any) -> None:  # noqa: N802 (Qt naming)
+    def keyPressEvent(self, event: Any) -> None:
         if event.key() == Qt.Key.Key_Escape:
             self.close()
             return

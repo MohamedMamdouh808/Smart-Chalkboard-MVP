@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -13,8 +13,11 @@ class Metrics:
         self.conn = conn
 
     def record(
-        self, event_type: str, value_ms: int | None = None,
-        lesson_id: str | None = None, detail: dict[str, Any] | None = None,
+        self,
+        event_type: str,
+        value_ms: int | None = None,
+        lesson_id: str | None = None,
+        detail: dict[str, Any] | None = None,
     ) -> None:
         with self.conn:
             self.conn.execute(
@@ -25,6 +28,6 @@ class Metrics:
                     event_type,
                     value_ms,
                     json.dumps(detail or {}),
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )

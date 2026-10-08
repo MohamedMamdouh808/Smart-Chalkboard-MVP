@@ -6,8 +6,8 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.ui import theme  # noqa: E402
-from smartboard.ui.main_window import MainWindow  # noqa: E402
+from smartboard.ui import theme
+from smartboard.ui.main_window import MainWindow
 
 SIZES = [(960, 540), (1366, 768), (1920, 1080)]
 # T001 baselines (pre-change board heights at the same window sizes).

@@ -6,8 +6,8 @@ import pytest
 
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
 
-from smartboard.app.orchestrator import build_app  # noqa: E402
-from smartboard.ui.main_window import MainWindow  # noqa: E402
+from smartboard.app.orchestrator import build_app
+from smartboard.ui.main_window import MainWindow
 
 TS = "2026-10-03T18:15:00Z"
 
@@ -15,8 +15,14 @@ TS = "2026-10-03T18:15:00Z"
 @pytest.fixture()
 def window(qapp: object) -> MainWindow:
     app = build_app()
-    app.engine.execute({"command": "create_heading", "target_id": None,
-                        "parameters": {"text": "Newton's Second Law"}, "timestamp": TS})
+    app.engine.execute(
+        {
+            "command": "create_heading",
+            "target_id": None,
+            "parameters": {"text": "Newton's Second Law"},
+            "timestamp": TS,
+        }
+    )
     win = MainWindow()
     win.render_board(app.engine.board.to_dict())
     win.resize(1280, 720)
@@ -34,8 +40,8 @@ def test_four_toggles_leave_state_identical(window: MainWindow, qapp: object) ->
 
 
 def test_f11_shortcut_toggles(window: MainWindow, qapp: object) -> None:
-    from PyQt6.QtTest import QTest
     from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
 
     was_fullscreen = window.isFullScreen()
     QTest.keyClick(window, Qt.Key.Key_F11)
