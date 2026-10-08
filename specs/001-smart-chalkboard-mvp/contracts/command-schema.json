@@ -1,0 +1,169 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SmartChalkboardCommand",
+  "description": "Locked 12-command schema. All four top-level fields required; no additional top-level fields.",
+  "type": "object",
+  "required": ["command", "target_id", "parameters", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "type": "string",
+      "enum": [
+        "create_heading", "create_text", "move_item", "resize_item",
+        "delete_item", "clear_board", "create_shape", "change_color",
+        "undo", "redo", "save_lesson", "new_lesson"
+      ]
+    },
+    "target_id": { "type": ["string", "null"] },
+    "parameters": { "type": "object" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "command": { "const": "create_heading" } } },
+      "then": {
+        "properties": {
+          "target_id": { "type": "null" },
+          "parameters": {
+            "type": "object",
+            "required": ["text"],
+            "additionalProperties": false,
+            "properties": {
+              "text": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "position": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "create_text" } } },
+      "then": {
+        "properties": {
+          "target_id": { "type": "null" },
+          "parameters": {
+            "type": "object",
+            "required": ["text"],
+            "additionalProperties": false,
+            "properties": {
+              "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "position": { "type": "object" },
+              "size": { "type": "object" },
+              "equation_style": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "move_item" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "position": { "type": "object" },
+              "relative": { "type": "object" },
+              "use_selection": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "resize_item" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scale_factor": { "type": "number", "minimum": 0.25, "maximum": 4.0 },
+              "size": { "type": "object" },
+              "use_selection": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "delete_item" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "use_selection": { "type": "boolean" } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "clear_board" } } },
+      "then": {
+        "properties": {
+          "target_id": { "type": "null" },
+          "parameters": { "type": "object", "additionalProperties": false }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "create_shape" } } },
+      "then": {
+        "properties": {
+          "target_id": { "type": "null" },
+          "parameters": {
+            "type": "object",
+            "required": ["shape_type"],
+            "additionalProperties": false,
+            "properties": {
+              "shape_type": { "type": "string", "enum": ["rectangle", "circle", "line", "arrow", "triangle"] },
+              "position": { "type": "object" },
+              "size": { "type": "object" },
+              "color": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "change_color" } } },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["color"],
+            "additionalProperties": false,
+            "properties": {
+              "color": { "type": "string" },
+              "use_selection": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "const": "new_lesson" } } },
+      "then": {
+        "properties": {
+          "target_id": { "type": "null" },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "title": { "type": "string", "minLength": 1, "maxLength": 200 } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "command": { "enum": ["undo", "redo", "save_lesson"] } } },
+      "then": {
+        "properties": {
+          "target_id": { "type": "null" },
+          "parameters": { "type": "object", "additionalProperties": false }
+        }
+      }
+    }
+  ]
+}

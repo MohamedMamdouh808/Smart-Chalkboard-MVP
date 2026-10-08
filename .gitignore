@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+htmlcov/
+.coverage*
+# Env & secrets (never commit keys)
+.env*
+*.key
+*.crt
+# Audio temp (raw audio must never persist)
+*.wav
+*.mp3
+temp_audio/
+# SQLite local data
+*.db
+*.db-wal
+*.db-shm
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+*.log
