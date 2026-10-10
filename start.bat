@@ -8,6 +8,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 set PYTHONPATH=src
+set SMARTBOARD_DEV_INPUT=1
 .venv\Scripts\python.exe -m smartboard.app.main
 
 if errorlevel 1 (
