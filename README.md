@@ -35,16 +35,12 @@
 ## 🚀 Quick start
 
 ```powershell
-git clone <repo-url>
-cd chalckboard
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env   # then add your GROQ_API_KEY
-.\start.bat
+git clone https://github.com/MohamedMamdouh808/Smart-Chalkboard-MVP
+cd Smart-Chalkboard-MVP
+setup.bat          # double-click: creates .venv, installs requirements, copies .env
+# open .env and paste your GROQ_API_KEY
+start.bat          # double-click: launches the board
 ```
-
-> 💡 `start.bat` sets `PYTHONPATH=src;C:\sblibs` (a machine-local PyQt6 location). If PyQt6 is installed in your environment, `PYTHONPATH=src` is enough — see [Running the app](#-running-the-app).
 
 ---
 
@@ -184,8 +180,8 @@ src/smartboard/
 ## 📦 Installation
 
 ```powershell
-git clone <repo-url>
-cd chalckboard
+git clone https://github.com/MohamedMamdouh808/Smart-Chalkboard-MVP
+cd Smart-Chalkboard-MVP
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -222,7 +218,7 @@ Copy-Item .env.example .env   # .env is gitignored — never commit real keys
 Or manually (omit `QT_QPA_PLATFORM` for a visible window):
 
 ```powershell
-$env:PYTHONPATH = "src"   # append ;C:\sblibs if PyQt6 lives there
+$env:PYTHONPATH = "src"
 py -3.11 -m smartboard.app.main
 ```
 
@@ -235,7 +231,7 @@ Whisper loads in the background on startup (mic button shows loading). Then **pr
 471 tests — unit, contract, integration, UI (`pytest-qt`, offscreen), end-to-end, performance:
 
 ```powershell
-$env:PYTHONPATH = "src"               # + ;C:\sblibs if needed
+$env:PYTHONPATH = "src"
 $env:QT_QPA_PLATFORM = "offscreen"    # headless Qt
 
 py -3.11 -m pytest tests -q
@@ -316,7 +312,7 @@ Workflow context: `AGENTS.md` points at the active plan; `.specify/memory/consti
 <details>
 <summary><b>ModuleNotFoundError: PyQt6</b></summary>
 
-Install requirements, or add the local lib dir: `$env:PYTHONPATH = "src;C:\sblibs"`.
+Install requirements into the project virtual environment (see [Installation](#-installation)).
 </details>
 
 <details>
