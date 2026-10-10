@@ -1,10 +1,14 @@
 @echo off
 cd /d "%~dp0"
 
-set PYTHONPATH=src;C:\sblibs
-set SMARTBOARD_DEV_INPUT=1
+if not exist ".venv\Scripts\python.exe" (
+    echo Run setup.bat first.
+    pause
+    exit /b 1
+)
 
-py -3.11 -m smartboard.app.main
+set PYTHONPATH=src
+.venv\Scripts\python.exe -m smartboard.app.main
 
 if errorlevel 1 (
     echo.

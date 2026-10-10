@@ -16,6 +16,7 @@ htmlcov/
 .coverage*
 # Env & secrets (never commit keys)
 .env*
+!.env.example
 *.key
 *.crt
 # Audio temp (raw audio must never persist)
